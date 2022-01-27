@@ -57,13 +57,22 @@ class Player:
 	id: int
 	word: Word
 
-	def __init__(self, id: int, name: str, word: Word):
+	def __init__(self, id: int, name: str):
 		self.name = name
 		self.id = id
-		self.word = word
+
+	@classmethod
+	def FromWord(cls, id: int, name: str, word: Word):
+		p = Player(id, name)
+		p.ChangeWord(word)
+
+		return p
 
 	def ChangeWord(self, newWord):
 		self.word = newWord
+
+	def ChangeName(self, name):
+		self.name = name
 
 
 class Hangman:
@@ -77,37 +86,54 @@ class Hangman:
 		self.yesFile = "yes.txt"
 		self.noFile = "no.txt"
 
-		self.invalidGuessReply = """
-We have only English words here.
-
-Please, guess the whole word or just a letter.
-If you want to stop playing, press /stop
-If you want to restart game, press /start
-"""
-
 		self.words = list()
 		self.yesVariants = list()
 		self.noVariants = list()
 
 		self.LoadFiles()
+		self.InitReplies()
 
 		self.players = dict()
 
-		@self.bot.message_handler(commands=['start', 'help'])
+		@self.bot.message_handler(commands=['welcome', 'help'])
 		def Welcome(message):
-			reply = self.bot.send_message(message.chat.id, "Hey! This is a Hangman bot. Wanna play?", reply_markup=self.YesNoKeyboard)
+			self.bot.send_message(message.chat.id, self.welcomeMessage)
 
-			# bot.send_message(message.chat.id, "".join("\U00002753" for i in range(5)).join("A").join("\U00002753" for i in range(5)))
+		@self.bot.message_handler(commands=['aboutme'])
+		def AboutMe(message):
+			reply = self.bot.send_message(message.chat.id, self.aboutMeMessage)
 
+			self.bot.register_next_step_handler(reply, self.RememberPlayersName)
+
+		@self.bot.message_handler(commands=['rules'])
+		def Rules(message):
+			self.bot.send_message(message.chat.id, self.rulesMessage)
+
+		@self.bot.message_handler(commands=['start'])
+		def StartGame(message):
+			reply = self.bot.send_message(message.chat.id, self.playMessage, reply_markup=self.YesNoKeyboard)
+			
 			self.bot.register_next_step_handler(reply, self.StartPlaying)
 
 	def AddOrUpdatePlayer(self, message: Message, word: Word):
 		playerId = message.chat.id
-		playerName = message.chat
+		playerName = message.chat.first_name
+
 		if (playerId in self.players):
 			self.players[playerId].ChangeWord(word)
 		else:
-			self.players[playerId] = Player(playerId, playerName, word)
+			self.players[playerId] = Player.FromWord(playerId, playerName, word)
+
+	def RememberPlayersName(self, message):
+		playerId = message.chat.id
+		playerName = message.text
+
+		if (playerId in self.players):
+			self.players[playerId].ChangeName(playerName)
+		else:
+			self.players[playerId] = Player(playerId, playerName)
+
+		self.bot.send_message(message.chat.id, f"I shall now be calling you {playerName}.")
 
 	def InitializeGame(self, message):
 		w = random.choice(self.words)
@@ -165,10 +191,10 @@ If you want to restart game, press /start
 				newMask = self.players[playerId].word.OpenLetters(result)
 
 				if (self.players[playerId].word.IsGuessed()):
-					self.bot.send_message(message.chat.id, f"Word guessed correctly! If you want to play again, press /start")
+					self.bot.send_message(message.chat.id, f"Word guessed correctly! Nice job, {self.players[playerId].name}! If you want to play again, press /start")
 					return
 
-				reply = self.bot.send_message(message.chat.id, f"Letter guessed correctly! The word: {newMask}")
+				reply = self.bot.send_message(message.chat.id, f"Letter guessed correctly! Nice job, {self.players[playerId].name}! The word: {newMask}")
 				
 			else:
 				reply = self.bot.send_message(message.chat.id, f"Letter is not found! Wanna try again?")
@@ -177,7 +203,7 @@ If you want to restart game, press /start
 			result = self.CheckWord(guess, word)
 
 			if (result):
-				self.bot.send_message(message.chat.id, f"Word guessed correctly! If you want to play again, press /start")
+				self.bot.send_message(message.chat.id, f"Word guessed correctly! Nice job, {self.players[playerId].name}! If you want to play again, press /start")
 				return
 
 			else:
@@ -223,6 +249,38 @@ If you want to restart game, press /start
 
 	def Run(self):
 		self.bot.infinity_polling()
+
+	def InitReplies(self):
+
+		self.welcomeMessage = """
+Hello! I am the Hangman bot developed by Georgy.
+The rules are here -> /rules
+We can go ahead and start playing the game -> /start
+Or we can get to know eachother first -> /aboutme		
+"""
+
+		self.playMessage = """
+Let's play then! Are you ready?
+"""
+
+		self.rulesMessage = """
+The rules are simple. I give you a word and you have to guess it.
+You have 10 attempts, if you miss a word or a letter -> -1 attempt.
+When you run out of attempts, the game is over.
+"""
+
+		self.aboutMeMessage = """
+I see you want to tell me about yourself.
+What is your name?
+"""
+
+		self.invalidGuessReply = """
+We have only English words here.
+
+Please, guess the whole word or just a letter.
+If you want to stop playing, press /stop
+If you want to restart game, press /start
+"""
 
 
 hangman = Hangman()

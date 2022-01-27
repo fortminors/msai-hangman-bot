@@ -27,9 +27,13 @@ class Word():
 		self.word = list(word)
 		self.mask = self.CreateWordMask(word)
 
+		self.guessed = False
+
 	def OpenLetters(self, letters: list) -> str:
 		for i in letters:
 			self.mask[i] = self.word[i]
+
+		self.guessed = self.mask == self.word
 
 		return self.GetMask()
 
@@ -43,6 +47,9 @@ class Word():
 	def GetWord(self):
 		return ''.join(self.word)
 		
+	def IsGuessed(self):
+		return self.guessed
+
 
 @dataclass
 class Player:
@@ -155,7 +162,14 @@ If you want to restart game, press /start
 			result = self.CheckLetter(guess, word)
 
 			if (result):
-				reply = self.bot.send_message(message.chat.id, f"Letter guessed correctly at positions {result}!")
+				newMask = self.players[playerId].word.OpenLetters(result)
+
+				if (self.players[playerId].word.IsGuessed()):
+					self.bot.send_message(message.chat.id, f"Word guessed correctly! If you want to play again, press /start")
+					return
+
+				reply = self.bot.send_message(message.chat.id, f"Letter guessed correctly! The word: {newMask}")
+				
 			else:
 				reply = self.bot.send_message(message.chat.id, f"Letter is not found! Wanna try again?")
 

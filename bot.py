@@ -33,6 +33,8 @@ class Hangman:
 
 		self.LoadFiles()
 
+		self.runGame = True
+
 		@self.bot.message_handler(commands=['start', 'help'])
 		def Welcome(message):
 			reply = self.bot.send_message(message.chat.id, "Hey! This is a Hangman bot. Wanna play?", reply_markup=self.YesNoKeyboard)
@@ -42,6 +44,8 @@ class Hangman:
 			self.bot.register_next_step_handler(reply, self.StartPlaying)
 
 	def StartPlaying(self, message):
+		self.runGame = True
+
 		reply = message.text.lower()
 
 		if (self.ValidateAnswerType(reply, AnswerType.Yes)):
@@ -50,13 +54,23 @@ class Hangman:
 
 			self.bot.register_next_step_handler(reply, self.PlayRound)
 
+	def StopGame(self, message):
+			self.runGame = False
+
+			self.bot.send_message(message.chat.id, "Stopping the game per your request.")
+
 	def PlayRound(self, message):
 		reply = self.HandleGuess(message)
 
-		self.bot.register_next_step_handler(reply, self.PlayRound)
+		if (self.runGame):
+			self.bot.register_next_step_handler(reply, self.PlayRound)
 
 	def HandleGuess(self, message):
 		guess = message.text.lower()
+
+		if (guess == "/stop"):
+			self.StopGame(message)
+			return
 
 		guessType = self.DetermineGuessType(guess)
 

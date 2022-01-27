@@ -1,5 +1,8 @@
 import telebot
+
 import random
+
+from typing import List
 
 from enum import Enum
 
@@ -33,8 +36,6 @@ class Hangman:
 
 		self.LoadFiles()
 
-		self.runGame = True
-
 		@self.bot.message_handler(commands=['start', 'help'])
 		def Welcome(message):
 			reply = self.bot.send_message(message.chat.id, "Hey! This is a Hangman bot. Wanna play?", reply_markup=self.YesNoKeyboard)
@@ -43,26 +44,30 @@ class Hangman:
 
 			self.bot.register_next_step_handler(reply, self.StartPlaying)
 
-	def StartPlaying(self, message):
-		self.runGame = True
+	def InitializeGame(self, message):
+		self.currentWord = random.choice(self.words)
+		reply = self.bot.send_message(message.chat.id, f"Here is your word: {self.currentWord}. Make a guess!")
 
+		self.bot.register_next_step_handler(reply, self.PlayRound)
+
+	def StartPlaying(self, message):
 		reply = message.text.lower()
 
 		if (self.ValidateAnswerType(reply, AnswerType.Yes)):
-			self.currentWord = random.choice(self.words)
-			reply = self.bot.reply_to(message, f"Here is your word: {self.currentWord}. Make a guess!")
+			self.InitializeGame(message)
 
-			self.bot.register_next_step_handler(reply, self.PlayRound)
+	def RestartGame(self, message):
+		self.bot.send_message(message.chat.id, "I see you want to restart game, sure!")
+
+		self.InitializeGame(message)
 
 	def StopGame(self, message):
-			self.runGame = False
-
-			self.bot.send_message(message.chat.id, "Stopping the game per your request.")
+		self.bot.send_message(message.chat.id, "Stopping the game per your request.")
 
 	def PlayRound(self, message):
 		reply = self.HandleGuess(message)
 
-		if (self.runGame):
+		if (isinstance(reply, telebot.types.Message)):
 			self.bot.register_next_step_handler(reply, self.PlayRound)
 
 	def HandleGuess(self, message):
@@ -71,23 +76,30 @@ class Hangman:
 		if (guess == "/stop"):
 			self.StopGame(message)
 			return
+		elif (guess == '/start'):
+			self.RestartGame(message)
+			return
 
 		guessType = self.DetermineGuessType(guess)
 
 		if (guessType == GuessType.Error):
 			return self.bot.send_message(message.chat.id, "We have only English words here. Please, guess the whole word or just a letter.")
 
-		answerContent = "Letter" if guessType == GuessType.Letter else "Word"
-
 		if (guessType == GuessType.Letter):
 			result = self.CheckLetter(guess, self.currentWord)
-		else:
+
+			if (result):
+				reply = self.bot.send_message(message.chat.id, f"Letter guessed correctly at positions {result}!")
+			else:
+				reply = self.bot.send_message(message.chat.id, f"Letter is not found! Wanna try again?")
+
+		elif (guessType == GuessType.Word):
 			result = self.CheckWord(guess, self.currentWord)
 
-		if (result):
-			reply = self.bot.send_message(message.chat.id, f"{answerContent} guessed correctly!")
-		else:
-			reply = self.bot.send_message(message.chat.id, f"{answerContent} is not correct! Wanna try again?")
+			if (result):
+				reply = self.bot.send_message(message.chat.id, f"Word guessed correctly!")
+			else:
+				reply = self.bot.send_message(message.chat.id, f"Incorrect word guess! Wanna try again?")
 
 		return reply
 
@@ -100,10 +112,8 @@ class Hangman:
 
 		return GuessType.Word
 
-	def CheckLetter(self, letter: str, word: str) -> bool:
-		if (letter in word):
-			return True
-		return False
+	def CheckLetter(self, letter: str, word: str) -> List[int]:
+		return [pos for pos, char in enumerate(word) if char == letter]
 
 	def CheckWord(self, guessWord: str, word: str) -> bool:
 		if (guessWord == word):

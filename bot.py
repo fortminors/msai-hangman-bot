@@ -104,10 +104,13 @@ If you want to restart game, press /start
 
 	def InitializeGame(self, message):
 		w = random.choice(self.words)
+		word = Word(w)
 
-		self.AddOrUpdatePlayer(message, Word(w))
+		self.AddOrUpdatePlayer(message, word)
 
-		reply = self.bot.send_message(message.chat.id, f"Here is your word: {w}. Make a guess!")
+		print(w)
+
+		reply = self.bot.send_message(message.chat.id, f"Here is your word: {word.GetMask()}. Make a guess!")
 
 		self.bot.register_next_step_handler(reply, self.PlayRound)
 
@@ -160,7 +163,9 @@ If you want to restart game, press /start
 			result = self.CheckWord(guess, word)
 
 			if (result):
-				reply = self.bot.send_message(message.chat.id, f"Word guessed correctly!")
+				self.bot.send_message(message.chat.id, f"Word guessed correctly! If you want to play again, press /start")
+				return
+
 			else:
 				reply = self.bot.send_message(message.chat.id, f"Incorrect word guess! Wanna try again?")
 

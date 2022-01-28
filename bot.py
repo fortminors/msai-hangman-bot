@@ -112,20 +112,35 @@ class Hangman:
 
 		@self.bot.message_handler(commands=['welcome', 'help'])
 		def Welcome(message):
-			self.bot.SendMessage(message.chat.id, self.welcomeMessage, True)
+			self.AddPlayer(message)
+			self.AddMessageToDelete(message)
+
+			self.SendMessage(message.chat.id, self.welcomeMessage, True)
 
 		@self.bot.message_handler(commands=['aboutme'])
 		def AboutMe(message):
+			self.AddPlayer(message)
+			self.AddMessageToDelete(message)
+
 			reply = self.SendMessage(message.chat.id, self.aboutMeMessage, True)
-			self.bot.register_next_step_handler(reply, self.RememberPlayersName)
+			self.bot.register_next_step_handler(reply, self.UpdatePlayersName)
 
 		@self.bot.message_handler(commands=['rules'])
 		def Rules(message):
+			self.AddPlayer(message)
+			self.AddMessageToDelete(message)
+
 			self.SendMessage(message.chat.id, self.rulesMessage, True)
 
 		@self.bot.message_handler(commands=['start'])
 		def StartGame(message):
+			# Ignoring start game if this is the first start for this player
+			if (message.chat.id not in self.players):
+				Welcome(message)
+				return
+
 			self.AddPlayer(message)
+			self.AddMessageToDelete(message)
 
 			self.DeleteAllPreviousMessages(message)
 
@@ -151,7 +166,8 @@ class Hangman:
 		playerId = message.chat.id
 		playerName = message.text
 
-		self.AddPlayer(message)
+		self.AddMessageToDelete(message)
+
 		self.players[playerId].ChangeName(playerName)
 
 		self.SendMessage(message.chat.id, self.changedName.substitute(name=playerName), True)
@@ -173,12 +189,14 @@ class Hangman:
 
 		print(w)
 
-		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()))
+		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()), True)
 
 		self.bot.register_next_step_handler(reply, self.PlayRound)
 
 	def StartPlaying(self, message):
 		reply = message.text.lower()
+
+		self.AddMessageToDelete(message)
 
 		if (self.ValidateAnswerType(reply, AnswerType.Yes)):
 			self.InitializeGame(message)
@@ -304,6 +322,12 @@ class Hangman:
 			for line in file:
 				array.append(line[:-1].lower())
 
+	def AddMessageToDelete(self, message):
+		playerId = message.chat.id
+
+		if (playerId in self.players):
+			self.players[playerId].AddMessageToDelete(message)
+
 	def DeleteAllPreviousMessages(self, message):
 		playerId = message.chat.id
 
@@ -364,7 +388,7 @@ $newMask
 
 		self.letterDuplicate = "You've already guessed this letter!"
 
-		self.changedName  = Template("I shall now be calling you $playerName.")
+		self.changedName  = Template("I shall now be calling you $name.")
 
 		self.makeAGuess = Template("""
 Here is your word:

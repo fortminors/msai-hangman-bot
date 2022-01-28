@@ -24,10 +24,15 @@ class Word():
 	def __init__(self, word):
 		self.q = "\U00002753"
 
+		self.letterAttempts = set()
+
 		self.word = list(word)
 		self.mask = self.CreateWordMask(word)
 
 		self.guessed = False
+
+	def AddLetterAttempt(self, letter: str) -> None:
+		self.letterAttempts.add(letter)
 
 	def OpenLetters(self, letters: list) -> str:
 		for i in letters:
@@ -143,7 +148,7 @@ class Hangman:
 
 		print(w)
 
-		reply = self.bot.send_message(message.chat.id, f"Here is your word: {word.GetMask()}. Make a guess!")
+		reply = self.bot.send_message(message.chat.id, f"Here is your word:\n{word.GetMask()}\n Make a guess!")
 
 		self.bot.register_next_step_handler(reply, self.PlayRound)
 
@@ -161,10 +166,19 @@ class Hangman:
 	def StopGame(self, message):
 		self.bot.send_message(message.chat.id, "Stopping the game per your request.")
 
+	def ShowCurrentGuesses(self, message):
+		playerId = message.chat.id
+		word = self.players[playerId].word
+
+		if (len(word.letterAttempts) > 0):
+			self.bot.send_message(message.chat.id, f"Current attempted letters: {' '.join(word.letterAttempts)}")
+
 	def PlayRound(self, message):
 		reply = self.HandleGuess(message)
 
 		if (isinstance(reply, Message)):
+			self.ShowCurrentGuesses(message)
+
 			self.bot.register_next_step_handler(reply, self.PlayRound)
 
 	def HandleGuess(self, message):
@@ -185,6 +199,14 @@ class Hangman:
 			return self.bot.send_message(message.chat.id, self.invalidGuessReply)
 
 		if (guessType == GuessType.Letter):
+
+			# Already guesses this letter
+			if (guess in self.players[playerId].word.letterAttempts):
+				return self.bot.send_message(message.chat.id, f"You've already guessed this letter!")
+
+			# Remembering the guess
+			self.players[playerId].word.AddLetterAttempt(guess)
+
 			result = self.CheckLetter(guess, word)
 
 			if (result):
@@ -194,7 +216,7 @@ class Hangman:
 					self.bot.send_message(message.chat.id, f"Word guessed correctly! Nice job, {self.players[playerId].name}! If you want to play again, press /start")
 					return
 
-				reply = self.bot.send_message(message.chat.id, f"Letter guessed correctly! Nice job, {self.players[playerId].name}! The word: {newMask}")
+				reply = self.bot.send_message(message.chat.id, f"Letter guessed correctly! Nice job, {self.players[playerId].name}!\n{newMask}")
 				
 			else:
 				reply = self.bot.send_message(message.chat.id, f"Letter is not found! Wanna try again?")

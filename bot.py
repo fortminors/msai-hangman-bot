@@ -1,8 +1,10 @@
+from pyexpat.errors import messages
 import telebot
 
 import random
 
 from typing import List
+from typing import Dict
 
 from enum import Enum
 from dataclasses import dataclass
@@ -63,12 +65,16 @@ class Player:
 	name: str
 	id: int
 	word: Word
+	attempts: int
 	deleteMessageCandidates: List[Message]
+	meaningfulMessages: Dict[str, Message]
 
 	def __init__(self, id: int, name: str):
 		self.name = name
 		self.id = id
+		self.attempts = 10
 		self.deleteMessageCandidates = list()
+		self.meaningfulMessages = dict()
 
 	@classmethod
 	def FromWord(cls, id: int, name: str, word: Word):
@@ -89,6 +95,17 @@ class Player:
 	def GetMessagesToDelete(self):
 		return self.deleteMessageCandidates
 
+	def RefreshAttempts(self):
+		self.attempts = 10
+
+	# Returns True if there are still attempts left
+	def DecreaseAttempts(self) -> bool:
+		self.attempts -= 1
+
+		if (self.attempts <= 0):
+			return False
+		
+		return True
 
 class Hangman:
 	def __init__(self):
@@ -182,14 +199,22 @@ class Hangman:
 			self.players[playerId] = Player.FromWord(playerId, playerName, word)
 
 	def InitializeGame(self, message):
+		playerId = message.chat.id
 		w = random.choice(self.words)
 		word = Word(w)
 
 		self.UpdateWord(message, word)
 
 		print(w)
-
 		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()), True)
+		self.players[playerId].meaningfulMessages['showWord'] = reply
+
+		self.players[playerId].RefreshAttempts()
+		attempts = self.players[playerId].attempts
+		reply = self.SendMessage(message.chat.id, self.attemptsLeft.substitute(attempts=attempts), True)
+		self.players[playerId].meaningfulMessages['attempts'] = reply
+
+		self.ShowCurrentLetterAttempts(message)
 
 		self.bot.register_next_step_handler(reply, self.PlayRound)
 
@@ -200,6 +225,8 @@ class Hangman:
 
 		if (self.ValidateAnswerType(reply, AnswerType.Yes)):
 			self.InitializeGame(message)
+		else:
+			self.SendMessage(message.chat.id, self.playReject, True)
 
 	def RestartGame(self, message):
 		self.DeleteAllPreviousMessages(message)
@@ -211,33 +238,35 @@ class Hangman:
 	def StopGame(self, message):
 		self.SendMessage(message.chat.id, self.stopGame, True)
 
-	def ShowCurrentGuesses(self, message):
+	def ShowCurrentLetterAttempts(self, message):
 		playerId = message.chat.id
 		word = self.players[playerId].word
-
-		if (len(word.letterAttempts) > 0):
-			self.SendMessage(message.chat.id, self.currentLetters.substitute(letters=' '.join(word.letterAttempts)), True)
+ 
+		m = self.SendMessage(message.chat.id, self.currentLetters.substitute(letters=' '.join(word.letterAttempts)), True)
+		self.players[playerId].meaningfulMessages['letterAttempts'] = m
 
 	def DeleteUserMessage(self, message):
 		self.bot.delete_message(message.chat.id, message.id)
 
-	def UpdateMessage(self, message, text):
-		self.bot.edit_message_text(message.chat.id, text=text, message_id=message.id)
+	def UpdateMessage(self, message, text) -> Message:
+		self.bot.edit_message_text(text, message.chat.id, message.id)
+		return message
 
 	def PlayRound(self, message):
 		reply = self.HandleGuess(message)
 
 		self.DeleteUserMessage(message)
 
+		# Ignore ended dialogues. They return None
 		if (isinstance(reply, Message)):
-			self.ShowCurrentGuesses(message)
-
 			self.bot.register_next_step_handler(reply, self.PlayRound)
 
 	def HandleGuess(self, message):
 		guess = message.text.lower()
 		playerId = message.chat.id
 		word = self.players[playerId].word.GetWord()
+
+		reply = self.players[playerId].meaningfulMessages['showWord']	
 
 		if (guess == "/stop"):
 			self.StopGame(message)
@@ -253,15 +282,22 @@ class Hangman:
 
 		if (guessType == GuessType.Letter):
 
-			# Already guesses this letter
+			# Already guessed this letter
 			if (guess in self.players[playerId].word.letterAttempts):
-				return self.SendMessage(message.chat.id, self.letterDuplicate, True)
+				#return self.SendMessage(message.chat.id, self.letterDuplicate, True)
+				return reply
 
 			# Remembering the guess
 			self.players[playerId].word.AddLetterAttempt(guess)
 
+			# Updating the letters that the user guessed
+			m = self.players[playerId].meaningfulMessages['letterAttempts']
+			w = self.players[playerId].word
+			self.UpdateMessage(m, self.currentLetters.substitute(letters=' '.join(w.letterAttempts)))
+
 			result = self.CheckLetter(guess, word)
 
+			# Guess succeeded
 			if (result):
 				newMask = self.players[playerId].word.OpenLetters(result)
 
@@ -269,20 +305,46 @@ class Hangman:
 					self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 					return
 
-				reply = self.SendMessage(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask), True)
-				
+				showWordMessage = self.players[playerId].meaningfulMessages['showWord']
+				reply = self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=newMask))
+
+				# reply = self.SendMessage(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask), True)
+
+			# Guess failed
 			else:
-				reply = self.SendMessage(message.chat.id, self.letterNotFound, True)
+				stillPlaying = self.players[playerId].DecreaseAttempts()
+
+				if (not stillPlaying):
+					self.SendMessage(message.chat.id, self.noAttempts, True)
+					return
+
+				attempts = self.players[playerId].attempts
+				attemptsMessage = self.players[playerId].meaningfulMessages['attempts']
+
+				reply = self.UpdateMessage(attemptsMessage, self.attemptsLeft.substitute(attempts=attempts))
+				# reply = self.SendMessage(message.chat.id, self.letterNotFound, True)
 
 		elif (guessType == GuessType.Word):
 			result = self.CheckWord(guess, word)
 
+			# Guess succeeded
 			if (result):
 				self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 				return
 
+			# Guess failed
 			else:
-				reply = self.SendMessage(message.chat.id, self.incorrectWordGuess, True)
+				stillPlaying = self.players[playerId].DecreaseAttempts()
+
+				if (not stillPlaying):
+					self.SendMessage(message.chat.id, self.noAttempts, True)
+					return
+
+				attempts = self.players[playerId].attempts
+				attemptsMessage = self.players[playerId].meaningfulMessages['attempts']
+
+				reply = self.UpdateMessage(attemptsMessage, self.attemptsLeft.substitute(attempts=attempts))
+				# reply = self.SendMessage(message.chat.id, self.incorrectWordGuess, True)
 
 		return reply
 
@@ -322,6 +384,9 @@ class Hangman:
 			for line in file:
 				array.append(line[:-1].lower())
 
+			# :-1 trims the last character of last line
+			array[-1] = line.lower()
+
 	def AddMessageToDelete(self, message):
 		playerId = message.chat.id
 
@@ -338,6 +403,8 @@ class Hangman:
 				m = messages.pop()
 				self.DeleteUserMessage(m)
 
+			self.players[playerId].meaningfulMessages.clear()
+
 	def Run(self):
 		self.bot.infinity_polling()
 
@@ -350,9 +417,9 @@ We can go ahead and start playing the game -> /start
 Or we can get to know eachother first -> /aboutme		
 """
 
-		self.playMessage = """
-Let's play then! Are you ready?
-"""
+		self.playMessage = "Let's play then! Are you ready?"
+
+		self.playReject = "Okay! I guess we are not playing then. If you change your mind, let me know -> /start"
 
 		self.rulesMessage = """
 The rules are simple. I give you a word and you have to guess it.
@@ -390,17 +457,17 @@ $newMask
 
 		self.changedName  = Template("I shall now be calling you $name.")
 
-		self.makeAGuess = Template("""
-Here is your word:
-$word
-Make a guess!		
-""")
+		self.makeAGuess = Template("Word to guess: $word")
+
+		self.attemptsLeft = Template("Attempts left: $attempts")
 
 		self.restartGame = "I see you want to restart game, sure!"
 
 		self.stopGame = "Stopping the game per your request."
 
 		self.currentLetters = Template("Current attempted letters: $letters")
+
+		self.noAttempts = "No attempts left, you've lost! If you want to play again, press /start"
 
 hangman = Hangman()
 hangman.Run()

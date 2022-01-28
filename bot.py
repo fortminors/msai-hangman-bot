@@ -172,6 +172,13 @@ class Hangman:
 
 		return message
 
+	def UpdateMessage(self, message, text) -> Message:
+		self.bot.edit_message_text(text, message.chat.id, message.id)
+		return message
+
+	def DeleteUserMessage(self, message):
+		self.bot.delete_message(message.chat.id, message.id)
+
 	def AddPlayer(self, message: Message):
 		playerId = message.chat.id
 		playerName = message.chat.first_name
@@ -238,20 +245,6 @@ class Hangman:
 	def StopGame(self, message):
 		self.SendMessage(message.chat.id, self.stopGame, True)
 
-	def ShowCurrentLetterAttempts(self, message):
-		playerId = message.chat.id
-		word = self.players[playerId].word
- 
-		m = self.SendMessage(message.chat.id, self.currentLetters.substitute(letters=' '.join(word.letterAttempts)), True)
-		self.players[playerId].meaningfulMessages['letterAttempts'] = m
-
-	def DeleteUserMessage(self, message):
-		self.bot.delete_message(message.chat.id, message.id)
-
-	def UpdateMessage(self, message, text) -> Message:
-		self.bot.edit_message_text(text, message.chat.id, message.id)
-		return message
-
 	def PlayRound(self, message):
 		reply = self.HandleGuess(message)
 
@@ -264,7 +257,6 @@ class Hangman:
 	def HandleGuess(self, message):
 		guess = message.text.lower()
 		playerId = message.chat.id
-		word = self.players[playerId].word.GetWord()
 
 		reply = self.players[playerId].meaningfulMessages['showWord']	
 
@@ -281,72 +273,87 @@ class Hangman:
 			return self.SendMessage(message.chat.id, self.invalidGuessReply, True)
 
 		if (guessType == GuessType.Letter):
-
-			# Already guessed this letter
-			if (guess in self.players[playerId].word.letterAttempts):
-				#return self.SendMessage(message.chat.id, self.letterDuplicate, True)
-				return reply
-
-			# Remembering the guess
-			self.players[playerId].word.AddLetterAttempt(guess)
-
-			# Updating the letters that the user guessed
-			m = self.players[playerId].meaningfulMessages['letterAttempts']
-			w = self.players[playerId].word
-			self.UpdateMessage(m, self.currentLetters.substitute(letters=' '.join(w.letterAttempts)))
-
-			result = self.CheckLetter(guess, word)
-
-			# Guess succeeded
-			if (result):
-				newMask = self.players[playerId].word.OpenLetters(result)
-
-				if (self.players[playerId].word.IsGuessed()):
-					self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
-					return
-
-				showWordMessage = self.players[playerId].meaningfulMessages['showWord']
-				reply = self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=newMask))
-
-				# reply = self.SendMessage(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask), True)
-
-			# Guess failed
-			else:
-				stillPlaying = self.players[playerId].DecreaseAttempts()
-
-				if (not stillPlaying):
-					self.SendMessage(message.chat.id, self.noAttempts, True)
-					return
-
-				attempts = self.players[playerId].attempts
-				attemptsMessage = self.players[playerId].meaningfulMessages['attempts']
-
-				reply = self.UpdateMessage(attemptsMessage, self.attemptsLeft.substitute(attempts=attempts))
-				# reply = self.SendMessage(message.chat.id, self.letterNotFound, True)
-
+			reply = self.HandleLetterGuess(guess, message)
 		elif (guessType == GuessType.Word):
-			result = self.CheckWord(guess, word)
+			reply = self.HandleWordGuess(guess, message)
 
-			# Guess succeeded
-			if (result):
+		return reply
+
+	def HandleLetterGuess(self, guess, message):
+		playerId = message.chat.id
+		word = self.players[playerId].word.GetWord()
+
+		reply = self.players[playerId].meaningfulMessages['showWord']
+
+		# Already guessed this letter
+		if (guess in self.players[playerId].word.letterAttempts):
+			#return self.SendMessage(message.chat.id, self.letterDuplicate, True)
+			return reply
+
+		# Remembering the guess
+		self.players[playerId].word.AddLetterAttempt(guess)
+
+		# Updating the letters that the user guessed
+		m = self.players[playerId].meaningfulMessages['letterAttempts']
+		w = self.players[playerId].word
+		self.UpdateMessage(m, self.currentLetters.substitute(letters=' '.join(w.letterAttempts)))
+
+		result = self.CheckLetter(guess, word)
+
+		# Guess succeeded
+		if (result):
+			newMask = self.players[playerId].word.OpenLetters(result)
+
+			if (self.players[playerId].word.IsGuessed()):
 				self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 				return
 
-			# Guess failed
-			else:
-				stillPlaying = self.players[playerId].DecreaseAttempts()
+			showWordMessage = self.players[playerId].meaningfulMessages['showWord']
+			reply = self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=newMask))
 
-				if (not stillPlaying):
-					self.SendMessage(message.chat.id, self.noAttempts, True)
-					return
+			# reply = self.SendMessage(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask), True)
 
-				attempts = self.players[playerId].attempts
-				attemptsMessage = self.players[playerId].meaningfulMessages['attempts']
-
-				reply = self.UpdateMessage(attemptsMessage, self.attemptsLeft.substitute(attempts=attempts))
-				# reply = self.SendMessage(message.chat.id, self.incorrectWordGuess, True)
+		# Guess failed
+		else:
+			reply = self.HandleGuessFailed(playerId, message)
 
 		return reply
+
+	def HandleWordGuess(self, guess, message):
+		playerId = message.chat.id
+		word = self.players[playerId].word.GetWord()
+
+		result = self.CheckWord(guess, word)
+
+		# Guess succeeded
+		if (result):
+			self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
+			return
+
+		# Guess failed
+		else:
+			reply = self.HandleGuessFailed(playerId, message)
+
+		return reply
+
+	def HandleGuessFailed(self, playerId, message):
+		stillPlaying = self.players[playerId].DecreaseAttempts()
+
+		if (not stillPlaying):
+			self.SendMessage(message.chat.id, self.noAttempts, True)
+			return
+
+		attempts = self.players[playerId].attempts
+		attemptsMessage = self.players[playerId].meaningfulMessages['attempts']
+
+		return self.UpdateMessage(attemptsMessage, self.attemptsLeft.substitute(attempts=attempts))
+
+	def ShowCurrentLetterAttempts(self, message):
+		playerId = message.chat.id
+		word = self.players[playerId].word
+ 
+		m = self.SendMessage(message.chat.id, self.currentLetters.substitute(letters=' '.join(word.letterAttempts)), True)
+		self.players[playerId].meaningfulMessages['letterAttempts'] = m
 
 	def DetermineGuessType(self, text: str) -> GuessType:
 		if (not text.isalpha()):
@@ -423,7 +430,8 @@ Or we can get to know eachother first -> /aboutme
 
 		self.rulesMessage = """
 The rules are simple. I give you a word and you have to guess it.
-You have 10 attempts, if you miss a word or a letter -> -1 attempt.
+You have 10 attempts
+If you miss a word or a letter -> -1 attempt.
 When you run out of attempts, the game is over.
 """
 

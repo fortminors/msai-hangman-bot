@@ -6,6 +6,7 @@ from typing import List
 
 from enum import Enum
 from dataclasses import dataclass
+from string import Template
 
 from telebot.types import Message
 
@@ -138,7 +139,7 @@ class Hangman:
 		else:
 			self.players[playerId] = Player(playerId, playerName)
 
-		self.bot.send_message(message.chat.id, f"I shall now be calling you {playerName}.")
+		self.bot.send_message(message.chat.id, self.changedName.substitute(name=playerName))
 
 	def InitializeGame(self, message):
 		w = random.choice(self.words)
@@ -148,7 +149,7 @@ class Hangman:
 
 		print(w)
 
-		reply = self.bot.send_message(message.chat.id, f"Here is your word:\n{word.GetMask()}\n Make a guess!")
+		reply = self.bot.send_message(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()))
 
 		self.bot.register_next_step_handler(reply, self.PlayRound)
 
@@ -159,19 +160,19 @@ class Hangman:
 			self.InitializeGame(message)
 
 	def RestartGame(self, message):
-		self.bot.send_message(message.chat.id, "I see you want to restart game, sure!")
+		self.bot.send_message(message.chat.id, self.restartGame)
 
 		self.InitializeGame(message)
 
 	def StopGame(self, message):
-		self.bot.send_message(message.chat.id, "Stopping the game per your request.")
+		self.bot.send_message(message.chat.id, self.stopGame)
 
 	def ShowCurrentGuesses(self, message):
 		playerId = message.chat.id
 		word = self.players[playerId].word
 
 		if (len(word.letterAttempts) > 0):
-			self.bot.send_message(message.chat.id, f"Current attempted letters: {' '.join(word.letterAttempts)}")
+			self.bot.send_message(message.chat.id, self.currentLetters.substitute(letters=' '.join(word.letterAttempts)))
 
 	def DeleteUserMessage(self, message):
 		self.bot.delete_message(message.chat.id, message.id)
@@ -210,7 +211,7 @@ class Hangman:
 
 			# Already guesses this letter
 			if (guess in self.players[playerId].word.letterAttempts):
-				return self.bot.send_message(message.chat.id, f"You've already guessed this letter!")
+				return self.bot.send_message(message.chat.id, self.letterDuplicate)
 
 			# Remembering the guess
 			self.players[playerId].word.AddLetterAttempt(guess)
@@ -221,23 +222,23 @@ class Hangman:
 				newMask = self.players[playerId].word.OpenLetters(result)
 
 				if (self.players[playerId].word.IsGuessed()):
-					self.bot.send_message(message.chat.id, f"Word guessed correctly! Nice job, {self.players[playerId].name}! If you want to play again, press /start")
+					self.bot.send_message(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name))
 					return
 
-				reply = self.bot.send_message(message.chat.id, f"Letter guessed correctly! Nice job, {self.players[playerId].name}!\n{newMask}")
+				reply = self.bot.send_message(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask))
 				
 			else:
-				reply = self.bot.send_message(message.chat.id, f"Letter is not found! Wanna try again?")
+				reply = self.bot.send_message(message.chat.id, self.letterNotFound)
 
 		elif (guessType == GuessType.Word):
 			result = self.CheckWord(guess, word)
 
 			if (result):
-				self.bot.send_message(message.chat.id, f"Word guessed correctly! Nice job, {self.players[playerId].name}! If you want to play again, press /start")
+				self.bot.send_message(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name))
 				return
 
 			else:
-				reply = self.bot.send_message(message.chat.id, f"Incorrect word guess! Wanna try again?")
+				reply = self.bot.send_message(message.chat.id, self.incorrectWordGuess)
 
 		return reply
 
@@ -312,6 +313,34 @@ If you want to stop playing, press /stop
 If you want to restart game, press /start
 """
 
+		self.correctWordGuess = Template("""
+Word guessed correctly! Nice job, $name! If you want to play again, press /start
+""")
+
+		self.correctLetterGuess = Template("""
+Letter guessed correctly! Nice job, $name!
+$newMask
+""")
+
+		self.letterNotFound = "Letter is not found! Wanna try again?"
+
+		self.incorrectWordGuess = "Incorrect word guess! Wanna try again?"
+
+		self.letterDuplicate = "You've already guessed this letter!"
+
+		self.changedName  = Template("I shall now be calling you $playerName.")
+
+		self.makeAGuess = Template("""
+Here is your word:
+$word
+Make a guess!		
+""")
+
+		self.restartGame = "I see you want to restart game, sure!"
+
+		self.stopGame = "Stopping the game per your request."
+
+		self.currentLetters = Template("Current attempted letters: $letters")
 
 hangman = Hangman()
 hangman.Run()

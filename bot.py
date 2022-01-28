@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from string import Template
 
 from telebot.types import Message
+from telebot.types import ReplyKeyboardMarkup
 
 class AnswerType(Enum):
 	No = 0,
@@ -62,10 +63,12 @@ class Player:
 	name: str
 	id: int
 	word: Word
+	deleteMessageCandidates: List[Message]
 
 	def __init__(self, id: int, name: str):
 		self.name = name
 		self.id = id
+		self.deleteMessageCandidates = list()
 
 	@classmethod
 	def FromWord(cls, id: int, name: str, word: Word):
@@ -79,6 +82,12 @@ class Player:
 
 	def ChangeName(self, name):
 		self.name = name
+
+	def AddMessageToDelete(self, message: Message):
+		self.deleteMessageCandidates.append(message)
+
+	def GetMessagesToDelete(self):
+		return self.deleteMessageCandidates
 
 
 class Hangman:
@@ -103,25 +112,51 @@ class Hangman:
 
 		@self.bot.message_handler(commands=['welcome', 'help'])
 		def Welcome(message):
-			self.bot.send_message(message.chat.id, self.welcomeMessage)
+			self.bot.SendMessage(message.chat.id, self.welcomeMessage, True)
 
 		@self.bot.message_handler(commands=['aboutme'])
 		def AboutMe(message):
-			reply = self.bot.send_message(message.chat.id, self.aboutMeMessage)
-
+			reply = self.SendMessage(message.chat.id, self.aboutMeMessage, True)
 			self.bot.register_next_step_handler(reply, self.RememberPlayersName)
 
 		@self.bot.message_handler(commands=['rules'])
 		def Rules(message):
-			self.bot.send_message(message.chat.id, self.rulesMessage)
+			self.SendMessage(message.chat.id, self.rulesMessage, True)
 
 		@self.bot.message_handler(commands=['start'])
 		def StartGame(message):
-			reply = self.bot.send_message(message.chat.id, self.playMessage, reply_markup=self.YesNoKeyboard)
-			
+			self.AddPlayer(message)
+
+			self.DeleteAllPreviousMessages(message)
+
+			reply = self.SendMessage(message.chat.id, self.playMessage, True, self.YesNoKeyboard)
 			self.bot.register_next_step_handler(reply, self.StartPlaying)
 
-	def AddOrUpdatePlayer(self, message: Message, word: Word):
+	def SendMessage(self, id: int, text: str, toDelete: bool = None, keyboard: ReplyKeyboardMarkup = None) -> Message:
+		message = self.bot.send_message(id, text, reply_markup=keyboard)
+
+		if (toDelete):
+			self.players[id].AddMessageToDelete(message)
+
+		return message
+
+	def AddPlayer(self, message: Message):
+		playerId = message.chat.id
+		playerName = message.chat.first_name
+
+		if (playerId not in self.players):
+			self.players[playerId] = Player(playerId, playerName)
+
+	def UpdatePlayersName(self, message):
+		playerId = message.chat.id
+		playerName = message.text
+
+		self.AddPlayer(message)
+		self.players[playerId].ChangeName(playerName)
+
+		self.SendMessage(message.chat.id, self.changedName.substitute(name=playerName), True)
+
+	def UpdateWord(self, message: Message, word: Word):
 		playerId = message.chat.id
 		playerName = message.chat.first_name
 
@@ -130,26 +165,15 @@ class Hangman:
 		else:
 			self.players[playerId] = Player.FromWord(playerId, playerName, word)
 
-	def RememberPlayersName(self, message):
-		playerId = message.chat.id
-		playerName = message.text
-
-		if (playerId in self.players):
-			self.players[playerId].ChangeName(playerName)
-		else:
-			self.players[playerId] = Player(playerId, playerName)
-
-		self.bot.send_message(message.chat.id, self.changedName.substitute(name=playerName))
-
 	def InitializeGame(self, message):
 		w = random.choice(self.words)
 		word = Word(w)
 
-		self.AddOrUpdatePlayer(message, word)
+		self.UpdateWord(message, word)
 
 		print(w)
 
-		reply = self.bot.send_message(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()))
+		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()))
 
 		self.bot.register_next_step_handler(reply, self.PlayRound)
 
@@ -160,19 +184,21 @@ class Hangman:
 			self.InitializeGame(message)
 
 	def RestartGame(self, message):
-		self.bot.send_message(message.chat.id, self.restartGame)
+		self.DeleteAllPreviousMessages(message)
+
+		self.SendMessage(message.chat.id, self.restartGame, True)
 
 		self.InitializeGame(message)
 
 	def StopGame(self, message):
-		self.bot.send_message(message.chat.id, self.stopGame)
+		self.SendMessage(message.chat.id, self.stopGam, True)
 
 	def ShowCurrentGuesses(self, message):
 		playerId = message.chat.id
 		word = self.players[playerId].word
 
 		if (len(word.letterAttempts) > 0):
-			self.bot.send_message(message.chat.id, self.currentLetters.substitute(letters=' '.join(word.letterAttempts)))
+			self.SendMessage(message.chat.id, self.currentLetters.substitute(letters=' '.join(word.letterAttempts)), True)
 
 	def DeleteUserMessage(self, message):
 		self.bot.delete_message(message.chat.id, message.id)
@@ -205,13 +231,13 @@ class Hangman:
 		guessType = self.DetermineGuessType(guess)
 
 		if (guessType == GuessType.Error):
-			return self.bot.send_message(message.chat.id, self.invalidGuessReply)
+			return self.SendMessage(message.chat.id, self.invalidGuessReply, True)
 
 		if (guessType == GuessType.Letter):
 
 			# Already guesses this letter
 			if (guess in self.players[playerId].word.letterAttempts):
-				return self.bot.send_message(message.chat.id, self.letterDuplicate)
+				return self.SendMessage(message.chat.id, self.letterDuplicate, True)
 
 			# Remembering the guess
 			self.players[playerId].word.AddLetterAttempt(guess)
@@ -222,23 +248,23 @@ class Hangman:
 				newMask = self.players[playerId].word.OpenLetters(result)
 
 				if (self.players[playerId].word.IsGuessed()):
-					self.bot.send_message(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name))
+					self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 					return
 
-				reply = self.bot.send_message(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask))
+				reply = self.SendMessage(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask), True)
 				
 			else:
-				reply = self.bot.send_message(message.chat.id, self.letterNotFound)
+				reply = self.SendMessage(message.chat.id, self.letterNotFound, True)
 
 		elif (guessType == GuessType.Word):
 			result = self.CheckWord(guess, word)
 
 			if (result):
-				self.bot.send_message(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name))
+				self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 				return
 
 			else:
-				reply = self.bot.send_message(message.chat.id, self.incorrectWordGuess)
+				reply = self.SendMessage(message.chat.id, self.incorrectWordGuess, True)
 
 		return reply
 
@@ -277,6 +303,16 @@ class Hangman:
 		with open(fileName, 'r') as file:
 			for line in file:
 				array.append(line[:-1].lower())
+
+	def DeleteAllPreviousMessages(self, message):
+		playerId = message.chat.id
+
+		if (playerId in self.players):
+			messages = self.players[playerId].GetMessagesToDelete()
+			
+			for _ in range(len(messages)):
+				m = messages.pop()
+				self.DeleteUserMessage(m)
 
 	def Run(self):
 		self.bot.infinity_polling()

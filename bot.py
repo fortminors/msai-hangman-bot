@@ -173,8 +173,16 @@ class Hangman:
 		if (len(word.letterAttempts) > 0):
 			self.bot.send_message(message.chat.id, f"Current attempted letters: {' '.join(word.letterAttempts)}")
 
+	def DeleteUserMessage(self, message):
+		self.bot.delete_message(message.chat.id, message.id)
+
+	def UpdateMessage(self, message, text):
+		self.bot.edit_message_text(message.chat.id, text=text, message_id=message.id)
+
 	def PlayRound(self, message):
 		reply = self.HandleGuess(message)
+
+		self.DeleteUserMessage(message)
 
 		if (isinstance(reply, Message)):
 			self.ShowCurrentGuesses(message)

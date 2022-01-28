@@ -209,7 +209,7 @@ class Hangman:
 		self.InitializeGame(message)
 
 	def StopGame(self, message):
-		self.SendMessage(message.chat.id, self.stopGam, True)
+		self.SendMessage(message.chat.id, self.stopGame, True)
 
 	def ShowCurrentGuesses(self, message):
 		playerId = message.chat.id

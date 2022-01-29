@@ -13,6 +13,8 @@ from telebot.types import Message
 from telebot.types import ReplyKeyboardMarkup
 from telebot.types import InputMediaPhoto
 
+from database import DatabaseManager
+
 class AnswerType(Enum):
 	No = 0,
 	Yes = 1,
@@ -169,6 +171,8 @@ class Hangman:
 
 		self.players = dict()
 
+		self.databaseManager = DatabaseManager()
+
 		@self.bot.message_handler(commands=['welcome', 'help'])
 		def Welcome(message):
 			self.AddPlayer(message)
@@ -194,7 +198,7 @@ class Hangman:
 		@self.bot.message_handler(commands=['start'])
 		def StartGame(message):
 			# Ignoring start game if this is the first start for this player
-			if (message.chat.id not in self.players):
+			if (not self.databaseManager.PlayerExists(message.chat.id)):
 				Welcome(message)
 				return
 
@@ -249,6 +253,15 @@ class Hangman:
 		playerName = message.chat.first_name
 
 		if (playerId not in self.players):
+			player = self.databaseManager.GetPlayerIfExists(playerId)
+
+			# Saving the new player
+			if (player is None):
+				self.databaseManager.AddPlayer(playerId, playerName)
+			# Taking what's stored
+			else:
+				playerName = player.name
+
 			self.players[playerId] = Player(playerId, playerName)
 
 	def UpdatePlayersName(self, message):
@@ -260,6 +273,8 @@ class Hangman:
 		self.players[playerId].ChangeName(playerName)
 
 		self.SendMessage(message.chat.id, self.changedName.substitute(name=playerName), True)
+
+		self.databaseManager.ChangePlayerName(playerId, playerName)
 
 	def UpdateWord(self, message: Message, word: Word):
 		playerId = message.chat.id
@@ -325,6 +340,10 @@ class Hangman:
 		# Ignore ended dialogues. They return None
 		if (isinstance(reply, Message)):
 			self.bot.register_next_step_handler(reply, self.PlayRound)
+		# None means the game is over and has to be marked as played
+		elif (reply is None):
+			playerId = message.chat.id
+			self.databaseManager.IncrementGamesPlayed(playerId)
 
 	def HandleGuess(self, message):
 		guess = message.text.lower()
@@ -380,6 +399,7 @@ class Hangman:
 			reply = self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=newMask))
 
 			if (self.players[playerId].word.IsGuessed()):
+				self.databaseManager.IncrementGamesWon(playerId)
 				self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 				return
 
@@ -399,6 +419,7 @@ class Hangman:
 
 		# Guess succeeded
 		if (result):
+			self.databaseManager.IncrementGamesWon(playerId)
 			self.RevealWord(message)
 			self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 			return

@@ -34,13 +34,18 @@ class State(Enum):
 	state_4 = 4
 	state_5 = 5
 	state_6 = 6
+	state_7 = 7
+	state_8 = 8
+	state_9 = 9
+	state_10 = 10
 
 @dataclass
 class StateManager:
 	state: State = State.state_0
+	maxState: int = 10
 
 	def Next(self):
-		if (self.state == State.state_6):
+		if (self.state.value == self.maxState):
 			self.state = State.state_0
 		else:
 			self.state = State(self.state.value + 1)
@@ -97,7 +102,7 @@ class Player:
 	def __init__(self, id: int, name: str):
 		self.name = name
 		self.id = id
-		self.attempts = 6
+		self.attempts = 10
 		self.stateManager = StateManager()
 		self.deleteMessageCandidates = set()
 		self.meaningfulMessages = dict()
@@ -135,7 +140,7 @@ class Player:
 		return self.deleteMessageCandidates
 
 	def RefreshAttempts(self):
-		self.attempts = 6
+		self.attempts = 10
 
 	# Returns True if there are still attempts left
 	def DecreaseAttempts(self) -> bool:
@@ -161,6 +166,7 @@ class Hangman:
 		self.wordsFile = "words.txt"
 		self.yesFile = "yes.txt"
 		self.noFile = "no.txt"
+		self.statePath = "states/easy/"
 
 		self.words = list()
 		self.yesVariants = list()
@@ -211,7 +217,7 @@ class Hangman:
 			self.bot.register_next_step_handler(reply, self.StartPlaying)
 
 	def SendState(self, state, message):
-		with open(f'states/{state}.png', 'rb') as image:
+		with open(f'{self.statePath}{state}.png', 'rb') as image:
 			m = self.bot.send_photo(message.chat.id, image)
 
 		# Always cleanup photos
@@ -537,7 +543,7 @@ Or we can get to know eachother first -> /aboutme
 
 		self.rulesMessage = """
 The rules are simple. I give you a word and you have to guess it.
-You have 6 attempts
+You have 10 attempts
 If you miss a word or a letter -> -1 attempt.
 When you run out of attempts, the game is over.
 """

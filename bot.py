@@ -3,8 +3,7 @@ import telebot
 
 import random
 
-from typing import List
-from typing import Dict
+from typing import List, Set, Dict
 
 from enum import Enum
 from dataclasses import dataclass
@@ -12,6 +11,7 @@ from string import Template
 
 from telebot.types import Message
 from telebot.types import ReplyKeyboardMarkup
+from telebot.types import InputMediaPhoto
 
 class AnswerType(Enum):
 	No = 0,
@@ -23,6 +23,28 @@ class GuessType(Enum):
 	Word = 1,
 	Error = 2,
 
+
+class State(Enum):
+	state_0 = 0
+	state_1 = 1
+	state_2 = 2
+	state_3 = 3
+	state_4 = 4
+	state_5 = 5
+	state_6 = 6
+
+@dataclass
+class StateManager:
+	state: State = State.state_0
+
+	def Next(self):
+		if (self.state == State.state_6):
+			self.state = State.state_0
+		else:
+			self.state = State(self.state.value + 1)
+
+	def Reset(self):
+		self.state = State.state_0
 
 class Word():
 	def __init__(self, word):
@@ -66,14 +88,16 @@ class Player:
 	id: int
 	word: Word
 	attempts: int
-	deleteMessageCandidates: List[Message]
+	stateManager: StateManager
+	deleteMessageCandidates: Set[Message]
 	meaningfulMessages: Dict[str, Message]
 
 	def __init__(self, id: int, name: str):
 		self.name = name
 		self.id = id
-		self.attempts = 10
-		self.deleteMessageCandidates = list()
+		self.attempts = 6
+		self.stateManager = StateManager()
+		self.deleteMessageCandidates = set()
 		self.meaningfulMessages = dict()
 
 	@classmethod
@@ -89,14 +113,27 @@ class Player:
 	def ChangeName(self, name):
 		self.name = name
 
+	def ResetState(self):
+		self.stateManager.Reset()
+
+	def NextState(self):
+		self.stateManager.Next()
+
+	def CurrentState(self) -> str:
+		return self.stateManager.state.name
+
 	def AddMessageToDelete(self, message: Message):
-		self.deleteMessageCandidates.append(message)
+		self.deleteMessageCandidates.add(message)
+
+	def RemoveMessageFromDelete(self, message: Message):
+		if (message in self.deleteMessageCandidates):
+			self.deleteMessageCandidates.remove(message)
 
 	def GetMessagesToDelete(self):
 		return self.deleteMessageCandidates
 
 	def RefreshAttempts(self):
-		self.attempts = 10
+		self.attempts = 6
 
 	# Returns True if there are still attempts left
 	def DecreaseAttempts(self) -> bool:
@@ -111,8 +148,13 @@ class Hangman:
 	def __init__(self):
 		self.bot = telebot.TeleBot("5188887338:AAEkmGdVyFHkIw4gt_-oiksnYBJuvdl3bY0")
 
-		self.YesNoKeyboard = telebot.types.ReplyKeyboardMarkup(True,True)
-		self.YesNoKeyboard.row("Yes", "No")
+		self.yesNoKeyboard = ReplyKeyboardMarkup(True, True)
+		self.yesNoKeyboard.row("Yes", "No")
+
+		self.defaultKeyboard = ReplyKeyboardMarkup(True, False)
+		self.defaultKeyboard.row("/start", "/stop")
+		self.defaultKeyboard.row("/welcome", "/help")
+		self.defaultKeyboard.row("/aboutme", "/rules")
 
 		self.wordsFile = "words.txt"
 		self.yesFile = "yes.txt"
@@ -132,7 +174,7 @@ class Hangman:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
-			self.SendMessage(message.chat.id, self.welcomeMessage, True)
+			self.SendMessage(message.chat.id, self.welcomeMessage, True, self.defaultKeyboard)
 
 		@self.bot.message_handler(commands=['aboutme'])
 		def AboutMe(message):
@@ -161,8 +203,29 @@ class Hangman:
 
 			self.DeleteAllPreviousMessages(message)
 
-			reply = self.SendMessage(message.chat.id, self.playMessage, True, self.YesNoKeyboard)
+			reply = self.SendMessage(message.chat.id, self.playMessage, True, self.yesNoKeyboard)
 			self.bot.register_next_step_handler(reply, self.StartPlaying)
+
+	def SendState(self, state, message):
+		with open(f'states/{state}.png', 'rb') as image:
+			m = self.bot.send_photo(message.chat.id, image)
+
+		# Always cleanup photos
+		self.players[message.chat.id].AddMessageToDelete(m)
+		return m
+
+	def UpdateState(self, message):
+		playerId = message.chat.id
+
+		if ('state' in self.players[playerId].meaningfulMessages):
+			self.players[playerId].NextState()
+
+			stateMessage = self.players[playerId].meaningfulMessages['state']
+			self.DeleteUserMessage(stateMessage)
+
+		stateName = self.players[playerId].CurrentState()
+		stateMessage = self.SendState(stateName, message)
+		self.players[playerId].meaningfulMessages['state'] = stateMessage
 
 	def SendMessage(self, id: int, text: str, toDelete: bool = None, keyboard: ReplyKeyboardMarkup = None) -> Message:
 		message = self.bot.send_message(id, text, reply_markup=keyboard)
@@ -177,6 +240,8 @@ class Hangman:
 		return message
 
 	def DeleteUserMessage(self, message):
+		playerId = message.chat.id
+		self.players[playerId].RemoveMessageFromDelete(message)
 		self.bot.delete_message(message.chat.id, message.id)
 
 	def AddPlayer(self, message: Message):
@@ -210,10 +275,12 @@ class Hangman:
 		w = random.choice(self.words)
 		word = Word(w)
 
+		self.players[playerId].ResetState()
+
 		self.UpdateWord(message, word)
 
 		print(w)
-		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()), True)
+		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()), True, self.defaultKeyboard)
 		self.players[playerId].meaningfulMessages['showWord'] = reply
 
 		self.players[playerId].RefreshAttempts()
@@ -222,6 +289,8 @@ class Hangman:
 		self.players[playerId].meaningfulMessages['attempts'] = reply
 
 		self.ShowCurrentLetterAttempts(message)
+
+		self.UpdateState(message)
 
 		self.bot.register_next_step_handler(reply, self.PlayRound)
 
@@ -339,6 +408,8 @@ class Hangman:
 	def HandleGuessFailed(self, playerId, message):
 		stillPlaying = self.players[playerId].DecreaseAttempts()
 
+		self.UpdateState(message)
+
 		if (not stillPlaying):
 			self.SendMessage(message.chat.id, self.noAttempts, True)
 			return
@@ -430,7 +501,7 @@ Or we can get to know eachother first -> /aboutme
 
 		self.rulesMessage = """
 The rules are simple. I give you a word and you have to guess it.
-You have 10 attempts
+You have 6 attempts
 If you miss a word or a letter -> -1 attempt.
 When you run out of attempts, the game is over.
 """

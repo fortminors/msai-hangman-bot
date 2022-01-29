@@ -280,7 +280,10 @@ class Hangman:
 		self.UpdateWord(message, word)
 
 		print(w)
-		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()), True, self.defaultKeyboard)
+
+		self.SendMessage(message.chat.id, "Launching the game...", True,  self.defaultKeyboard)
+
+		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()), True)
 		self.players[playerId].meaningfulMessages['showWord'] = reply
 
 		self.players[playerId].RefreshAttempts()

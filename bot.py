@@ -376,12 +376,12 @@ class Hangman:
 		if (result):
 			newMask = self.players[playerId].word.OpenLetters(result)
 
+			showWordMessage = self.players[playerId].meaningfulMessages['showWord']
+			reply = self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=newMask))
+
 			if (self.players[playerId].word.IsGuessed()):
 				self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 				return
-
-			showWordMessage = self.players[playerId].meaningfulMessages['showWord']
-			reply = self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=newMask))
 
 			# reply = self.SendMessage(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask), True)
 
@@ -399,6 +399,7 @@ class Hangman:
 
 		# Guess succeeded
 		if (result):
+			self.RevealWord(message)
 			self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
 			return
 
@@ -413,14 +414,25 @@ class Hangman:
 
 		self.UpdateState(message)
 
-		if (not stillPlaying):
-			self.SendMessage(message.chat.id, self.noAttempts, True)
-			return
-
 		attempts = self.players[playerId].attempts
 		attemptsMessage = self.players[playerId].meaningfulMessages['attempts']
 
-		return self.UpdateMessage(attemptsMessage, self.attemptsLeft.substitute(attempts=attempts))
+		reply = self.UpdateMessage(attemptsMessage, self.attemptsLeft.substitute(attempts=attempts))
+
+		if (not stillPlaying):
+			self.SendMessage(message.chat.id, self.noAttempts, True)
+
+			self.RevealWord(message)
+			return
+
+		return reply
+
+	def RevealWord(self, message):
+		playerId = message.chat.id
+		word = self.players[playerId].word.GetWord()
+
+		showWordMessage = self.players[playerId].meaningfulMessages['showWord']
+		self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=word))
 
 	def ShowCurrentLetterAttempts(self, message):
 		playerId = message.chat.id
@@ -547,7 +559,7 @@ $newMask
 
 		self.stopGame = "Stopping the game per your request."
 
-		self.currentLetters = Template("Current attempted letters: $letters")
+		self.currentLetters = Template("Currently attempted letters: $letters")
 
 		self.noAttempts = "No attempts left, you've lost! If you want to play again, press /start"
 

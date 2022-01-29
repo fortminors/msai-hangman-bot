@@ -162,10 +162,11 @@ class Hangman:
 		self.defaultKeyboard.row("/start", "/stop")
 		self.defaultKeyboard.row("/welcome", "/help")
 		self.defaultKeyboard.row("/aboutme", "/rules")
+		self.defaultKeyboard.row("/leaderboard")
 
-		self.wordsFile = "words.txt"
-		self.yesFile = "yes.txt"
-		self.noFile = "no.txt"
+		self.wordsFile = "files/words.txt"
+		self.yesFile = "files/yes.txt"
+		self.noFile = "files/no.txt"
 		self.statePath = "states/easy/"
 
 		self.words = list()
@@ -186,6 +187,8 @@ class Hangman:
 
 			self.SendMessage(message.chat.id, self.welcomeMessage, True, self.defaultKeyboard)
 
+			self.databaseManager.GetLeaderboard(10)
+
 		@self.bot.message_handler(commands=['aboutme'])
 		def AboutMe(message):
 			self.AddPlayer(message)
@@ -200,6 +203,15 @@ class Hangman:
 			self.AddMessageToDelete(message)
 
 			self.SendMessage(message.chat.id, self.rulesMessage, True)
+
+		@self.bot.message_handler(commands=['leaderboard'])
+		def ShowLeaderboard(message):
+			self.AddPlayer(message)
+			self.AddMessageToDelete(message)
+
+			leaderboard = self.databaseManager.GetLeaderboard(10)
+
+			self.SendMessage(message.chat.id, '\n'.join(self.SubstituteLeaderboardStats(stats) for stats in leaderboard), True)
 
 		@self.bot.message_handler(commands=['start'])
 		def StartGame(message):
@@ -326,7 +338,7 @@ class Hangman:
 		if (self.ValidateAnswerType(reply, AnswerType.Yes)):
 			self.InitializeGame(message)
 		else:
-			self.SendMessage(message.chat.id, self.playReject, True)
+			self.SendMessage(message.chat.id, self.playReject, True, self.defaultKeyboard)
 
 	def RestartGame(self, message):
 		self.DeleteAllPreviousMessages(message)
@@ -525,6 +537,9 @@ class Hangman:
 
 			self.players[playerId].meaningfulMessages.clear()
 
+	def SubstituteLeaderboardStats(self, stats):
+		return self.leaderboardMessage.substitute(name=stats[0], wins=stats[1], played=stats[2])
+
 	def Run(self):
 		self.bot.infinity_polling()
 
@@ -547,6 +562,8 @@ You have 10 attempts
 If you miss a word or a letter -> -1 attempt.
 When you run out of attempts, the game is over.
 """
+
+		self.leaderboardMessage = Template("$name | Win Ratio: $wins/$played")
 
 		self.aboutMeMessage = """
 I see you want to tell me about yourself.

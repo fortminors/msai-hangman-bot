@@ -1,4 +1,4 @@
-from pony.orm import Database, Required, PrimaryKey, db_session
+from pony.orm import Database, Required, PrimaryKey, db_session, select, desc
 
 class DatabaseManager:
 
@@ -9,6 +9,7 @@ class DatabaseManager:
         name = Required(str)
         gamesPlayed = Required(int)
         gamesWon = Required(int)
+        winPercentage = Required(int)
 
     def __init__(self):
         self.db.bind(provider='sqlite', filename='players.sqlite', create_db=True)
@@ -25,7 +26,7 @@ class DatabaseManager:
     @db_session
     def AddPlayer(self, id, name):
         if (not self.Player.exists(id=id)):
-            self.Player(id=id, name=name, gamesPlayed=0, gamesWon=0)
+            self.Player(id=id, name=name, gamesPlayed=0, gamesWon=0, winPercentage=0)
 
     @db_session
     def ChangePlayerName(self, id, name):
@@ -34,14 +35,30 @@ class DatabaseManager:
     @db_session
     def IncrementGamesPlayed(self, id):
         self.Player[id].gamesPlayed += 1
+        self.UpdateWinPercentage(id)
 
     @db_session
     def IncrementGamesWon(self, id):
         self.Player[id].gamesWon += 1
+        self.UpdateWinPercentage(id)
+
+    @db_session
+    def UpdateWinPercentage(self, id):
+        winPercentage = self.GetWinPercentage(id)
+        self.Player[id].winPercentage = winPercentage
 
     @db_session
     def GetWinPercentage(self, id):
-        played = self.Player[id].gamesPlayed
         won = self.Player[id].gamesWon
+        played = self.Player[id].gamesPlayed
 
-        return round((won / played) * 100)
+        winPercentage = 100
+
+        if (played > 0):
+            winPercentage = round((won / played) * 100)
+
+        return winPercentage
+
+    @db_session
+    def GetLeaderboard(self, amount):
+        return select((p.name, p.gamesWon, p.gamesPlayed) for p in self.Player).order_by(lambda: desc(p.winPercentage))[:amount]

@@ -15,6 +15,8 @@ from telebot.types import InputMediaPhoto
 
 from database import DatabaseManager
 
+from localization import EnglishLocalization, RussianLocalization
+
 class AnswerType(Enum):
 	No = 0,
 	Yes = 1,
@@ -25,6 +27,9 @@ class GuessType(Enum):
 	Word = 1,
 	Error = 2,
 
+class LocalizationType(Enum):
+	Russian = 0,
+	English = 1,
 
 class State(Enum):
 	state_0 = 0
@@ -98,6 +103,7 @@ class Player:
 	stateManager: StateManager
 	deleteMessageCandidates: Set[Message]
 	meaningfulMessages: Dict[str, Message]
+	localizationType: LocalizationType
 
 	def __init__(self, id: int, name: str):
 		self.name = name
@@ -106,6 +112,7 @@ class Player:
 		self.stateManager = StateManager()
 		self.deleteMessageCandidates = set()
 		self.meaningfulMessages = dict()
+		self.localizationType = LocalizationType.English
 
 	@classmethod
 	def FromWord(cls, id: int, name: str, word: Word):
@@ -142,6 +149,9 @@ class Player:
 	def RefreshAttempts(self):
 		self.attempts = 10
 
+	def ChangeLocalization(self, localization: LocalizationType):
+		self.localizationType = localization
+
 	# Returns True if there are still attempts left
 	def DecreaseAttempts(self) -> bool:
 		self.attempts -= 1
@@ -162,19 +172,27 @@ class Hangman:
 		self.defaultKeyboard.row("/start", "/stop")
 		self.defaultKeyboard.row("/welcome", "/help")
 		self.defaultKeyboard.row("/aboutme", "/rules")
-		self.defaultKeyboard.row("/leaderboard")
+		self.defaultKeyboard.row("/leaderboard", "/language")
 
-		self.wordsFile = "files/words.txt"
+		self.languageKeyboard = ReplyKeyboardMarkup(True, True)
+		self.languageKeyboard.row("Русский", "English")
+
+		self.wordsRussianFile = "files/words_russian.txt"
+		self.wordsEnglishFile = "files/words_english.txt"
+
 		self.yesFile = "files/yes.txt"
 		self.noFile = "files/no.txt"
 		self.statePath = "states/easy/"
 
-		self.words = list()
+		self.wordsRussian = list()
+		self.wordsEnglish = list()
+
 		self.yesVariants = list()
 		self.noVariants = list()
 
+		self.localization = EnglishLocalization()
+
 		self.LoadFiles()
-		self.InitReplies()
 
 		self.players = dict()
 
@@ -185,7 +203,7 @@ class Hangman:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
-			self.SendMessage(message.chat.id, self.welcomeMessage, True, self.defaultKeyboard)
+			self.SendMessage(message.chat.id, self.localization.welcomeMessage, True, self.defaultKeyboard)
 
 			self.databaseManager.GetLeaderboard(10)
 
@@ -194,7 +212,7 @@ class Hangman:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
-			reply = self.SendMessage(message.chat.id, self.aboutMeMessage, True)
+			reply = self.SendMessage(message.chat.id, self.localization.aboutMeMessage, True)
 			self.bot.register_next_step_handler(reply, self.UpdatePlayersName)
 
 		@self.bot.message_handler(commands=['rules'])
@@ -202,7 +220,7 @@ class Hangman:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
-			self.SendMessage(message.chat.id, self.rulesMessage, True)
+			self.SendMessage(message.chat.id, self.localization.rulesMessage, True)
 
 		@self.bot.message_handler(commands=['leaderboard'])
 		def ShowLeaderboard(message):
@@ -212,6 +230,15 @@ class Hangman:
 			leaderboard = self.databaseManager.GetLeaderboard(10)
 
 			self.SendMessage(message.chat.id, '\n'.join(self.SubstituteLeaderboardStats(stats) for stats in leaderboard), True)
+
+		@self.bot.message_handler(commands=['language'])
+		def ChangeLanguage(message):
+			self.AddPlayer(message)
+			self.AddMessageToDelete(message)
+
+			reply = self.SendMessage(message.chat.id, self.localization.changeLanguage, True, self.languageKeyboard)
+
+			self.bot.register_next_step_handler(reply, self.HandleChangeLanguage)
 
 		@self.bot.message_handler(commands=['start'])
 		def StartGame(message):
@@ -225,7 +252,7 @@ class Hangman:
 
 			self.DeleteAllPreviousMessages(message)
 
-			reply = self.SendMessage(message.chat.id, self.playMessage, True, self.yesNoKeyboard)
+			reply = self.SendMessage(message.chat.id, self.localization.playMessage, True, self.yesNoKeyboard)
 			self.bot.register_next_step_handler(reply, self.StartPlaying)
 
 	def SendState(self, state, message):
@@ -290,7 +317,7 @@ class Hangman:
 
 		self.players[playerId].ChangeName(playerName)
 
-		self.SendMessage(message.chat.id, self.changedName.substitute(name=playerName), True)
+		self.SendMessage(message.chat.id, self.localization.changedName.substitute(name=playerName), True)
 
 		self.databaseManager.ChangePlayerName(playerId, playerName)
 
@@ -305,7 +332,12 @@ class Hangman:
 
 	def InitializeGame(self, message):
 		playerId = message.chat.id
-		w = random.choice(self.words)
+
+		if (self.players[playerId].localizationType == LocalizationType.English):
+			w = random.choice(self.wordsEnglish)
+		else:
+			w = random.choice(self.wordsRussian)
+
 		word = Word(w)
 
 		self.players[playerId].ResetState()
@@ -314,14 +346,14 @@ class Hangman:
 
 		print(w)
 
-		self.SendMessage(message.chat.id, "Launching the game...", True,  self.defaultKeyboard)
+		self.SendMessage(message.chat.id, self.localization.launchingGame, True,  self.defaultKeyboard)
 
-		reply = self.SendMessage(message.chat.id, self.makeAGuess.substitute(word=word.GetMask()), True)
+		reply = self.SendMessage(message.chat.id, self.localization.makeAGuess.substitute(word=word.GetMask()), True)
 		self.players[playerId].meaningfulMessages['showWord'] = reply
 
 		self.players[playerId].RefreshAttempts()
 		attempts = self.players[playerId].attempts
-		reply = self.SendMessage(message.chat.id, self.attemptsLeft.substitute(attempts=attempts), True)
+		reply = self.SendMessage(message.chat.id, self.localization.attemptsLeft.substitute(attempts=attempts), True)
 		self.players[playerId].meaningfulMessages['attempts'] = reply
 
 		self.ShowCurrentLetterAttempts(message)
@@ -338,17 +370,17 @@ class Hangman:
 		if (self.ValidateAnswerType(reply, AnswerType.Yes)):
 			self.InitializeGame(message)
 		else:
-			self.SendMessage(message.chat.id, self.playReject, True, self.defaultKeyboard)
+			self.SendMessage(message.chat.id, self.localization.playReject, True, self.defaultKeyboard)
 
 	def RestartGame(self, message):
 		self.DeleteAllPreviousMessages(message)
 
-		self.SendMessage(message.chat.id, self.restartGame, True)
+		self.SendMessage(message.chat.id, self.localization.restartGame, True)
 
 		self.InitializeGame(message)
 
 	def StopGame(self, message):
-		self.SendMessage(message.chat.id, self.stopGame, True)
+		self.SendMessage(message.chat.id, self.localization.stopGame, True)
 
 	def PlayRound(self, message):
 		reply = self.HandleGuess(message)
@@ -379,7 +411,7 @@ class Hangman:
 		guessType = self.DetermineGuessType(guess)
 
 		if (guessType == GuessType.Error):
-			return self.SendMessage(message.chat.id, self.invalidGuessReply, True)
+			return self.SendMessage(message.chat.id, self.localization.invalidGuessReply, True)
 
 		if (guessType == GuessType.Letter):
 			reply = self.HandleLetterGuess(guess, message)
@@ -405,7 +437,7 @@ class Hangman:
 		# Updating the letters that the user guessed
 		m = self.players[playerId].meaningfulMessages['letterAttempts']
 		w = self.players[playerId].word
-		self.UpdateMessage(m, self.currentLetters.substitute(letters=' '.join(w.letterAttempts)))
+		self.UpdateMessage(m, self.localization.currentLetters.substitute(letters=' '.join(w.letterAttempts)))
 
 		result = self.CheckLetter(guess, word)
 
@@ -414,11 +446,11 @@ class Hangman:
 			newMask = self.players[playerId].word.OpenLetters(result)
 
 			showWordMessage = self.players[playerId].meaningfulMessages['showWord']
-			reply = self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=newMask))
+			reply = self.UpdateMessage(showWordMessage, self.localization.makeAGuess.substitute(word=newMask))
 
 			if (self.players[playerId].word.IsGuessed()):
 				self.databaseManager.IncrementGamesWon(playerId)
-				self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
+				self.SendMessage(message.chat.id, self.localization.correctWordGuess.substitute(name=self.players[playerId].name), True)
 				return
 
 			# reply = self.SendMessage(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask), True)
@@ -439,7 +471,7 @@ class Hangman:
 		if (result):
 			self.databaseManager.IncrementGamesWon(playerId)
 			self.RevealWord(message)
-			self.SendMessage(message.chat.id, self.correctWordGuess.substitute(name=self.players[playerId].name), True)
+			self.SendMessage(message.chat.id, self.localization.correctWordGuess.substitute(name=self.players[playerId].name), True)
 			return
 
 		# Guess failed
@@ -456,10 +488,10 @@ class Hangman:
 		attempts = self.players[playerId].attempts
 		attemptsMessage = self.players[playerId].meaningfulMessages['attempts']
 
-		reply = self.UpdateMessage(attemptsMessage, self.attemptsLeft.substitute(attempts=attempts))
+		reply = self.UpdateMessage(attemptsMessage, self.localization.attemptsLeft.substitute(attempts=attempts))
 
 		if (not stillPlaying):
-			self.SendMessage(message.chat.id, self.noAttempts, True)
+			self.SendMessage(message.chat.id, self.localization.noAttempts, True)
 
 			self.RevealWord(message)
 			return
@@ -471,13 +503,13 @@ class Hangman:
 		word = self.players[playerId].word.GetWord()
 
 		showWordMessage = self.players[playerId].meaningfulMessages['showWord']
-		self.UpdateMessage(showWordMessage, self.makeAGuess.substitute(word=word))
+		self.UpdateMessage(showWordMessage, self.localization.makeAGuess.substitute(word=word))
 
 	def ShowCurrentLetterAttempts(self, message):
 		playerId = message.chat.id
 		word = self.players[playerId].word
  
-		m = self.SendMessage(message.chat.id, self.currentLetters.substitute(letters=' '.join(word.letterAttempts)), True)
+		m = self.SendMessage(message.chat.id, self.localization.currentLetters.substitute(letters=' '.join(word.letterAttempts)), True)
 		self.players[playerId].meaningfulMessages['letterAttempts'] = m
 
 	def DetermineGuessType(self, text: str) -> GuessType:
@@ -497,6 +529,21 @@ class Hangman:
 			return True
 		return False
 
+	def HandleChangeLanguage(self, message):
+		playerId = message.chat.id
+
+		if (message.text == "English"):
+			self.localization = EnglishLocalization()
+			self.players[playerId].localizationType = LocalizationType.English
+		elif (message.text == "Русский"):
+			self.localization = RussianLocalization()
+			self.players[playerId].localizationType = LocalizationType.Russian
+		else:
+			self.SendMessage(playerId, self.localization.availableLanguages, True, self.defaultKeyboard)
+			return
+
+		self.SendMessage(playerId, self.localization.successfullyChangedLanguage, True, self.defaultKeyboard)
+
 	def ValidateAnswerType(self, text: str, answerType: AnswerType) -> bool:
 		if (text in self.yesVariants and answerType == AnswerType.Yes):
 			return True
@@ -507,7 +554,8 @@ class Hangman:
 		return False
 
 	def LoadFiles(self):
-		self.ReadFileLower(self.wordsFile, self.words)
+		self.ReadFileLower(self.wordsRussianFile, self.wordsRussian)
+		self.ReadFileLower(self.wordsEnglishFile, self.wordsEnglish)
 		self.ReadFileLower(self.yesFile, self.yesVariants)
 		self.ReadFileLower(self.noFile, self.noVariants)
 
@@ -538,74 +586,11 @@ class Hangman:
 			self.players[playerId].meaningfulMessages.clear()
 
 	def SubstituteLeaderboardStats(self, stats):
-		return self.leaderboardMessage.substitute(name=stats[0], wins=stats[1], played=stats[2])
+		return self.localization.leaderboardMessage.substitute(name=stats[0], wins=stats[1], played=stats[2])
 
 	def Run(self):
 		self.bot.infinity_polling()
 
-	def InitReplies(self):
-
-		self.welcomeMessage = """
-Hello! I am the Hangman bot developed by Georgy.
-The rules are here -> /rules
-We can go ahead and start playing the game -> /start
-Or we can get to know eachother first -> /aboutme		
-"""
-
-		self.playMessage = "Let's play then! Are you ready?"
-
-		self.playReject = "Okay! I guess we are not playing then. If you change your mind, let me know -> /start"
-
-		self.rulesMessage = """
-The rules are simple. I give you a word and you have to guess it.
-You have 10 attempts
-If you miss a word or a letter -> -1 attempt.
-When you run out of attempts, the game is over.
-"""
-
-		self.leaderboardMessage = Template("$name | Win Ratio: $wins/$played")
-
-		self.aboutMeMessage = """
-I see you want to tell me about yourself.
-What is your name?
-"""
-
-		self.invalidGuessReply = """
-We have only English words here.
-
-Please, guess the whole word or just a letter.
-If you want to stop playing, press /stop
-If you want to restart game, press /start
-"""
-
-		self.correctWordGuess = Template("""
-Word guessed correctly! Nice job, $name! If you want to play again, press /start
-""")
-
-		self.correctLetterGuess = Template("""
-Letter guessed correctly! Nice job, $name!
-$newMask
-""")
-
-		self.letterNotFound = "Letter is not found! Wanna try again?"
-
-		self.incorrectWordGuess = "Incorrect word guess! Wanna try again?"
-
-		self.letterDuplicate = "You've already guessed this letter!"
-
-		self.changedName  = Template("I shall now be calling you $name.")
-
-		self.makeAGuess = Template("Word to guess: $word")
-
-		self.attemptsLeft = Template("Attempts left: $attempts")
-
-		self.restartGame = "I see you want to restart game, sure!"
-
-		self.stopGame = "Stopping the game per your request."
-
-		self.currentLetters = Template("Currently attempted letters: $letters")
-
-		self.noAttempts = "No attempts left, you've lost! If you want to play again, press /start"
-
+	
 hangman = Hangman()
 hangman.Run()

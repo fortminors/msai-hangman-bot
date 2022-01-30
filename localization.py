@@ -62,7 +62,7 @@ $newMask
 
     changedName: str = Template("Хорошо, теперь буду обращаться к тебе так: $name.")
 
-    makeAGuess: str = Template("Загаданное слово: $word")
+    makeAGuess: str = Template("Загаданное слово:\n$word")
 
     attemptsLeft: str = Template("Попыток осталось: $attempts")
 
@@ -135,7 +135,7 @@ $newMask
 
     changedName: str = Template("I shall now be calling you $name.")
 
-    makeAGuess: str = Template("Word to guess: $word")
+    makeAGuess: str = Template("Word to guess:\n$word")
 
     attemptsLeft: str = Template("Attempts left: $attempts")
 

@@ -8,7 +8,9 @@ class RussianLocalization:
 Привет! Я Hangman bot, разработанный @georgygunkin.
 Правила тут -> /rules
 Мы можем прямиком начать играть -> /start
-Либо мы можем, для начала, познакомиться -> /aboutme		
+Либо мы можем, для начала, познакомиться -> /aboutme
+Ты можешь поменять язык на Английский -> /language
+Ты можешь посмотреть рекорд других игроков -> /leaderboard	
 """
 
     playMessage: str = "Ну, давай играть! Готов?"
@@ -81,7 +83,9 @@ class EnglishLocalization:
 Hello! I am the Hangman bot developed by @georgygunkin.
 The rules are here -> /rules
 We can go ahead and start playing the game -> /start
-Or we can get to know eachother first -> /aboutme		
+Or we can get to know eachother first -> /aboutme
+You can change the language to Russian -> /language
+You can view the scores of other players -> /leaderboard
 """
 
     playMessage: str = "Let's play then! Are you ready?"

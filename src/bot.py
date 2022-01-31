@@ -287,7 +287,6 @@ class Hangman:
 
 		# Already guessed this letter
 		if (guess in self.players[playerId].word.letterAttempts):
-			#return self.SendMessage(message.chat.id, self.letterDuplicate, True)
 			return reply
 
 		# Remembering the guess
@@ -311,8 +310,6 @@ class Hangman:
 				self.databaseManager.IncrementGamesWon(playerId)
 				self.SendMessage(message.chat.id, self.players[message.chat.id].localization.correctWordGuess.substitute(name=self.players[playerId].name), True)
 				return
-
-			# reply = self.SendMessage(message.chat.id, self.correctLetterGuess.substitute(name=self.players[playerId].name, newMask=newMask), True)
 
 		# Guess failed
 		else:

@@ -2,6 +2,7 @@
 
 ## General information and APIs used
 
+- This bot allows to play [Hangman game](https://en.wikipedia.org/wiki/Hangman_(game))
 - [pyTelegramBotAPI](https://github.com/eternnoir/pyTelegramBotAPI) for setting up the bot
 - [ponyorm](https://github.com/ponyorm/pony/) for storing information in a database
 

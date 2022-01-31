@@ -1,156 +1,21 @@
-from pyexpat.errors import messages
-import telebot
-
 import random
-
-from typing import List, Set, Dict
-
+from typing import List
 from enum import Enum
-from dataclasses import dataclass
-from string import Template
 
+import telebot
 from telebot.types import Message
 from telebot.types import ReplyKeyboardMarkup
-from telebot.types import InputMediaPhoto
 
 from database import DatabaseManager
-
 from localization import EnglishLocalization, RussianLocalization
+from word import Word
+from player import Player
 
 class GuessType(Enum):
 	Letter = 0,
 	Word = 1,
 	Error = 2,
 
-class State(Enum):
-	state_0 = 0
-	state_1 = 1
-	state_2 = 2
-	state_3 = 3
-	state_4 = 4
-	state_5 = 5
-	state_6 = 6
-	state_7 = 7
-	state_8 = 8
-	state_9 = 9
-	state_10 = 10
-
-@dataclass
-class StateManager:
-	state: State = State.state_0
-	maxState: int = 10
-
-	def Next(self):
-		if (self.state.value == self.maxState):
-			self.state = State.state_0
-		else:
-			self.state = State(self.state.value + 1)
-
-	def Reset(self):
-		self.state = State.state_0
-
-class Word():
-	def __init__(self, word):
-		self.q = "\U00002753"
-
-		self.letterAttempts = set()
-
-		self.word = list(word)
-		self.mask = self.CreateWordMask(word)
-
-		self.guessed = False
-
-	def AddLetterAttempt(self, letter: str) -> None:
-		self.letterAttempts.add(letter)
-
-	def OpenLetters(self, letters: list) -> str:
-		for i in letters:
-			self.mask[i] = self.word[i]
-
-		self.guessed = self.mask == self.word
-
-		return self.GetMask()
-
-	def CreateWordMask(self, word):
-		length = len(word)
-		return [self.q for _ in range(length)]
-
-	def GetMask(self):
-		return ''.join(self.mask)
-
-	def GetWord(self):
-		return ''.join(self.word)
-		
-	def IsGuessed(self):
-		return self.guessed
-
-
-@dataclass
-class Player:
-	name: str
-	id: int
-	word: Word
-	attempts: int
-	stateManager: StateManager
-	deleteMessageCandidates: Set[Message]
-	meaningfulMessages: Dict[str, Message]
-	localization: EnglishLocalization | RussianLocalization
-
-	def __init__(self, id: int, name: str):
-		self.name = name
-		self.id = id
-		self.attempts = 10
-		self.stateManager = StateManager()
-		self.deleteMessageCandidates = set()
-		self.meaningfulMessages = dict()
-		self.localization = EnglishLocalization()
-
-	@classmethod
-	def FromWord(cls, id: int, name: str, word: Word):
-		p = Player(id, name)
-		p.ChangeWord(word)
-
-		return p
-
-	def ChangeWord(self, newWord):
-		self.word = newWord
-
-	def ChangeName(self, name):
-		self.name = name
-
-	def ResetState(self):
-		self.stateManager.Reset()
-
-	def NextState(self):
-		self.stateManager.Next()
-
-	def CurrentState(self) -> str:
-		return self.stateManager.state.name
-
-	def AddMessageToDelete(self, message: Message):
-		self.deleteMessageCandidates.add(message)
-
-	def RemoveMessageFromDelete(self, message: Message):
-		if (message in self.deleteMessageCandidates):
-			self.deleteMessageCandidates.remove(message)
-
-	def GetMessagesToDelete(self):
-		return self.deleteMessageCandidates
-
-	def RefreshAttempts(self):
-		self.attempts = 10
-
-	def ChangeLocalization(self, localization: EnglishLocalization | RussianLocalization):
-		self.localization = localization
-
-	# Returns True if there are still attempts left
-	def DecreaseAttempts(self) -> bool:
-		self.attempts -= 1
-
-		if (self.attempts <= 0):
-			return False
-		
-		return True
 
 class Hangman:
 	def __init__(self):
@@ -579,6 +444,6 @@ class Hangman:
 	def Run(self):
 		self.bot.infinity_polling()
 
-	
-hangman = Hangman()
-hangman.Run()
+if __name__ == "__main__":
+	hangman = Hangman()
+	hangman.Run()

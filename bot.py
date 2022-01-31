@@ -525,6 +525,8 @@ class Hangman:
 	def HandleChangeLanguage(self, message):
 		playerId = message.chat.id
 
+		self.AddMessageToDelete(message)
+
 		if (message.text == "English"):
 			self.players[playerId].localization = EnglishLocalization()
 		elif (message.text == "Русский"):

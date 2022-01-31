@@ -1,5 +1,5 @@
 import random
-from typing import List
+from typing import List, Tuple
 from enum import Enum
 
 import telebot
@@ -10,6 +10,7 @@ from database import DatabaseManager
 from localization import EnglishLocalization, RussianLocalization
 from word import Word
 from player import Player
+
 
 class GuessType(Enum):
 	Letter = 0,
@@ -44,14 +45,14 @@ class Hangman:
 		self.wordsRussian = list()
 		self.wordsEnglish = list()
 
-		self.LoadFiles()
-
 		self.players = dict()
+
+		self.LoadFiles()
 
 		self.databaseManager = DatabaseManager()
 
 		@self.bot.message_handler(commands=['welcome', 'help'])
-		def Welcome(message):
+		def Welcome(message: Message) -> None:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
@@ -60,7 +61,7 @@ class Hangman:
 			self.databaseManager.GetLeaderboard(10)
 
 		@self.bot.message_handler(commands=['aboutme'])
-		def AboutMe(message):
+		def AboutMe(message: Message) -> None:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
@@ -68,14 +69,14 @@ class Hangman:
 			self.bot.register_next_step_handler(reply, self.UpdatePlayersName)
 
 		@self.bot.message_handler(commands=['rules'])
-		def Rules(message):
+		def Rules(message: Message) -> None:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
 			self.SendMessage(message.chat.id, self.players[message.chat.id].localization.rulesMessage, True)
 
 		@self.bot.message_handler(commands=['leaderboard'])
-		def ShowLeaderboard(message):
+		def ShowLeaderboard(message: Message) -> None:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
@@ -84,7 +85,7 @@ class Hangman:
 			self.SendMessage(message.chat.id, '\n'.join(self.SubstituteLeaderboardStats(message, stats) for stats in leaderboard), True)
 
 		@self.bot.message_handler(commands=['language'])
-		def ChangeLanguage(message):
+		def ChangeLanguage(message: Message) -> None:
 			self.AddPlayer(message)
 			self.AddMessageToDelete(message)
 
@@ -93,7 +94,7 @@ class Hangman:
 			self.bot.register_next_step_handler(reply, self.HandleChangeLanguage)
 
 		@self.bot.message_handler(commands=['start'])
-		def StartGame(message):
+		def StartGame(message: Message) -> None:
 			# Ignoring start game if this is the first start for this player
 			if (not self.databaseManager.PlayerExists(message.chat.id)):
 				Welcome(message)
@@ -113,7 +114,7 @@ class Hangman:
 			reply = self.SendMessage(message.chat.id, self.players[message.chat.id].localization.playMessage, True, keyboard)
 			self.bot.register_next_step_handler(reply, self.StartPlaying)
 
-	def SendState(self, state, message):
+	def SendState(self, state: str, message: Message) -> None:
 		with open(f'{self.statePath}{state}.png', 'rb') as image:
 			m = self.bot.send_photo(message.chat.id, image)
 
@@ -121,7 +122,7 @@ class Hangman:
 		self.players[message.chat.id].AddMessageToDelete(m)
 		return m
 
-	def UpdateState(self, message):
+	def UpdateState(self, message: Message) -> None:
 		playerId = message.chat.id
 
 		if ('state' in self.players[playerId].meaningfulMessages):
@@ -142,16 +143,16 @@ class Hangman:
 
 		return message
 
-	def UpdateMessage(self, message, text) -> Message:
+	def UpdateMessage(self, message: Message, text: str) -> Message:
 		self.bot.edit_message_text(text, message.chat.id, message.id)
 		return message
 
-	def DeleteUserMessage(self, message):
+	def DeleteUserMessage(self, message: Message) -> None:
 		playerId = message.chat.id
 		self.players[playerId].RemoveMessageFromDelete(message)
 		self.bot.delete_message(message.chat.id, message.id)
 
-	def AddPlayer(self, message: Message):
+	def AddPlayer(self, message: Message) -> None:
 		playerId = message.chat.id
 		playerName = message.chat.first_name
 
@@ -167,7 +168,7 @@ class Hangman:
 
 			self.players[playerId] = Player(playerId, playerName)
 
-	def UpdatePlayersName(self, message):
+	def UpdatePlayersName(self, message: Message) -> None:
 		playerId = message.chat.id
 		playerName = message.text
 
@@ -179,7 +180,7 @@ class Hangman:
 
 		self.databaseManager.ChangePlayerName(playerId, playerName)
 
-	def UpdateWord(self, message: Message, word: Word):
+	def UpdateWord(self, message: Message, word: Word) -> None:
 		playerId = message.chat.id
 		playerName = message.chat.first_name
 
@@ -188,7 +189,7 @@ class Hangman:
 		else:
 			self.players[playerId] = Player.FromWord(playerId, playerName, word)
 
-	def InitializeGame(self, message):
+	def InitializeGame(self, message: Message) -> None:
 		playerId = message.chat.id
 
 		if (isinstance(self.players[playerId].localization, EnglishLocalization)):
@@ -220,7 +221,7 @@ class Hangman:
 
 		self.bot.register_next_step_handler(reply, self.PlayRound)
 
-	def StartPlaying(self, message):
+	def StartPlaying(self, message: Message) -> None:
 		reply = message.text.lower()
 
 		self.AddMessageToDelete(message)
@@ -230,17 +231,17 @@ class Hangman:
 		else:
 			self.SendMessage(message.chat.id, self.players[message.chat.id].localization.playReject, True, self.defaultKeyboard)
 
-	def RestartGame(self, message):
+	def RestartGame(self, message: Message) -> None:
 		self.DeleteAllPreviousMessages(message)
 
 		self.SendMessage(message.chat.id, self.players[message.chat.id].localization.restartGame, True)
 
 		self.InitializeGame(message)
 
-	def StopGame(self, message):
+	def StopGame(self, message: Message) -> None:
 		self.SendMessage(message.chat.id, self.players[message.chat.id].localization.stopGame, True)
 
-	def PlayRound(self, message):
+	def PlayRound(self, message: Message) -> None:
 		reply = self.HandleGuess(message)
 
 		self.DeleteUserMessage(message)
@@ -253,7 +254,7 @@ class Hangman:
 			playerId = message.chat.id
 			self.databaseManager.IncrementGamesPlayed(playerId)
 
-	def HandleGuess(self, message):
+	def HandleGuess(self, message: Message) -> Message | None:
 		guess = message.text.lower()
 		playerId = message.chat.id
 
@@ -278,7 +279,7 @@ class Hangman:
 
 		return reply
 
-	def HandleLetterGuess(self, guess, message):
+	def HandleLetterGuess(self, guess: str, message: Message) -> Message | None:
 		playerId = message.chat.id
 		word = self.players[playerId].word.GetWord()
 
@@ -315,11 +316,11 @@ class Hangman:
 
 		# Guess failed
 		else:
-			reply = self.HandleGuessFailed(playerId, message)
+			reply = self.HandleGuessFailed(message)
 
 		return reply
 
-	def HandleWordGuess(self, guess, message):
+	def HandleWordGuess(self, guess: str, message: Message) -> Message | None:
 		playerId = message.chat.id
 		word = self.players[playerId].word.GetWord()
 
@@ -334,11 +335,12 @@ class Hangman:
 
 		# Guess failed
 		else:
-			reply = self.HandleGuessFailed(playerId, message)
+			reply = self.HandleGuessFailed(message)
 
 		return reply
 
-	def HandleGuessFailed(self, playerId, message):
+	def HandleGuessFailed(self, message: Message) -> Message | None:
+		playerId = message.chat.id
 		stillPlaying = self.players[playerId].DecreaseAttempts()
 
 		self.UpdateState(message)
@@ -356,14 +358,14 @@ class Hangman:
 
 		return reply
 
-	def RevealWord(self, message):
+	def RevealWord(self, message: Message) -> None:
 		playerId = message.chat.id
 		word = self.players[playerId].word.GetWord()
 
 		showWordMessage = self.players[playerId].meaningfulMessages['showWord']
 		self.UpdateMessage(showWordMessage, self.players[message.chat.id].localization.makeAGuess.substitute(word=word))
 
-	def ShowCurrentLetterAttempts(self, message):
+	def ShowCurrentLetterAttempts(self, message: Message) -> None:
 		playerId = message.chat.id
 		word = self.players[playerId].word
  
@@ -387,7 +389,7 @@ class Hangman:
 			return True
 		return False
 
-	def HandleChangeLanguage(self, message):
+	def HandleChangeLanguage(self, message: Message) -> None:
 		playerId = message.chat.id
 
 		self.AddMessageToDelete(message)
@@ -420,13 +422,13 @@ class Hangman:
 			# :-1 trims the last character of last line
 			array[-1] = line.lower()
 
-	def AddMessageToDelete(self, message):
+	def AddMessageToDelete(self, message: Message) -> None:
 		playerId = message.chat.id
 
 		if (playerId in self.players):
 			self.players[playerId].AddMessageToDelete(message)
 
-	def DeleteAllPreviousMessages(self, message):
+	def DeleteAllPreviousMessages(self, message: Message) -> None:
 		playerId = message.chat.id
 
 		if (playerId in self.players):
@@ -438,10 +440,10 @@ class Hangman:
 
 			self.players[playerId].meaningfulMessages.clear()
 
-	def SubstituteLeaderboardStats(self, message, stats):
+	def SubstituteLeaderboardStats(self, message: Message, stats: Tuple) -> str:
 		return self.players[message.chat.id].localization.leaderboardMessage.substitute(name=stats[0], wins=stats[1], played=stats[2])
 
-	def Run(self):
+	def Run(self) -> None:
 		self.bot.infinity_polling()
 
 if __name__ == "__main__":

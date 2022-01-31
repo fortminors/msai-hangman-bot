@@ -34,35 +34,35 @@ class Player:
 
 		return p
 
-	def ChangeWord(self, newWord):
+	def ChangeWord(self, newWord: str) -> None:
 		self.word = newWord
 
-	def ChangeName(self, name):
+	def ChangeName(self, name: str) -> None:
 		self.name = name
 
-	def ResetState(self):
+	def ResetState(self) -> None:
 		self.stateManager.Reset()
 
-	def NextState(self):
+	def NextState(self) -> None:
 		self.stateManager.Next()
 
 	def CurrentState(self) -> str:
 		return self.stateManager.state.name
 
-	def AddMessageToDelete(self, message: Message):
+	def AddMessageToDelete(self, message: Message) -> None:
 		self.deleteMessageCandidates.add(message)
 
-	def RemoveMessageFromDelete(self, message: Message):
+	def RemoveMessageFromDelete(self, message: Message) -> None:
 		if (message in self.deleteMessageCandidates):
 			self.deleteMessageCandidates.remove(message)
 
-	def GetMessagesToDelete(self):
+	def GetMessagesToDelete(self) -> Set[Message]:
 		return self.deleteMessageCandidates
 
-	def RefreshAttempts(self):
+	def RefreshAttempts(self) -> None:
 		self.attempts = 10
 
-	def ChangeLocalization(self, localization: EnglishLocalization | RussianLocalization):
+	def ChangeLocalization(self, localization: EnglishLocalization | RussianLocalization) -> None:
 		self.localization = localization
 
 	# Returns True if there are still attempts left

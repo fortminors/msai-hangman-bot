@@ -19,11 +19,11 @@ class StateManager:
 	state: State = State.state_0
 	maxState: int = 10
 
-	def Next(self):
+	def Next(self) -> None:
 		if (self.state.value == self.maxState):
 			self.state = State.state_0
 		else:
 			self.state = State(self.state.value + 1)
 
-	def Reset(self):
+	def Reset(self) -> None:
 		self.state = State.state_0

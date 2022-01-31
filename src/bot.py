@@ -171,10 +171,10 @@ class Hangman:
 		self.languageKeyboard = ReplyKeyboardMarkup(True, True)
 		self.languageKeyboard.row("Русский", "English")
 
-		self.wordsRussianFile = "files/words_russian.txt"
-		self.wordsEnglishFile = "files/words_english.txt"
+		self.wordsRussianFile = "../files/words_russian.txt"
+		self.wordsEnglishFile = "../files/words_english.txt"
 
-		self.statePath = "states/easy/"
+		self.statePath = "../states/easy/"
 
 		self.wordsRussian = list()
 		self.wordsEnglish = list()

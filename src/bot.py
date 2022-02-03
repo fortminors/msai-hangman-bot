@@ -211,15 +211,15 @@ class Hangman:
 
 		self.SendMessage(message.chat.id, self.players[message.chat.id].localization.launchingGame, True,  self.defaultKeyboard)
 
-		reply = self.SendMessage(message.chat.id, self.players[message.chat.id].localization.makeAGuess.substitute(word=word.GetMask()), True)
-		self.players[playerId].meaningfulMessages['showWord'] = reply
-
 		self.players[playerId].RefreshAttempts()
 		attempts = self.players[playerId].attempts
 		reply = self.SendMessage(message.chat.id, self.players[message.chat.id].localization.attemptsLeft.substitute(attempts=attempts), True)
 		self.players[playerId].meaningfulMessages['attempts'] = reply
 
 		self.ShowCurrentLetterAttempts(message)
+
+		reply = self.SendMessage(message.chat.id, self.players[message.chat.id].localization.makeAGuess.substitute(word=word.GetMask()), True)
+		self.players[playerId].meaningfulMessages['showWord'] = reply
 
 		self.UpdateState(message)
 

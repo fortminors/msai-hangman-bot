@@ -5,6 +5,7 @@ from typing import List, Tuple
 from enum import Enum
 from telebot.types import Message
 from telebot.types import ReplyKeyboardMarkup
+from dotenv import dotenv_values
 
 from database import DatabaseManager
 from localization import EnglishLocalization, RussianLocalization
@@ -20,7 +21,10 @@ class GuessType(Enum):
 
 class Hangman:
 	def __init__(self):
-		self.bot = telebot.TeleBot("5188887338:AAEkmGdVyFHkIw4gt_-oiksnYBJuvdl3bY0")
+
+		self.TOKEN = dotenv_values("../.env")['TOKEN']
+
+		self.bot = telebot.TeleBot(self.TOKEN)
 
 		self.yesNoKeyboardEnglish = ReplyKeyboardMarkup(True, True)
 		self.yesNoKeyboardEnglish.row("Yes", "No")

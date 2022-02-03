@@ -1,8 +1,8 @@
 import random
+import telebot
+
 from typing import List, Tuple
 from enum import Enum
-
-import telebot
 from telebot.types import Message
 from telebot.types import ReplyKeyboardMarkup
 

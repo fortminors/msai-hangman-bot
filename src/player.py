@@ -1,8 +1,6 @@
 from typing import Set, Dict
 from dataclasses import dataclass
-
 from telebot.types import Message
-
 from localization import EnglishLocalization, RussianLocalization
 from state import StateManager
 from word import Word

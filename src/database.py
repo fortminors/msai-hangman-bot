@@ -1,5 +1,4 @@
 from pony.orm import Database, Required, PrimaryKey, db_session, select, desc
-
 from typing import List, Tuple
 
 class DatabaseManager:

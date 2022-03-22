@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>View Posts Page</title>
+</head>
+<body>
+    <h1>New Product Django 2022!</h1>
+
+    <form action="/" method="post">
+        <button type="submit">Main Page</button>
+    </form>
+
+    <p>
+        All created forms are displayed below
+    </p>
+    <p>
+        {{ message }}
+    </p>
+
+    {% for name, email in students_list.items() %}
+      <p>Name = {{ name }}, Email = {{email}} </p>
+    {% endfor %}
+
+
+<!--    {{ time }}<br>-->
+<!--    {{ request.method }}<br>-->
+<!--    {{ request.headers }}-->
+</body>
+</html>

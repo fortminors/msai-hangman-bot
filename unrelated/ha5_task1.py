@@ -43,8 +43,6 @@ if __name__ == "__main__":
     X, y = load_iris(return_X_y=True)
     X, y = shuffle(X, y, random_state=random_state)
 
-    num_train = int(len(y) * train_size)
-
     X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=train_size, random_state=random_state)
 
     # print(f"Train size = {len(y_train)}, Test size = {len(y_test)}")
@@ -57,9 +55,9 @@ if __name__ == "__main__":
 
         clf.fit(curr_X_train, curr_y_train)
 
-        y_test_pred = clf.predict(X_test)
+        y_pred = clf.predict(X_test)
 
-        accuracy = accuracy_score(y_test, y_test_pred)
+        accuracy = accuracy_score(y_test, y_pred)
 
         print(f"df_share = {df_share}%, accuracy on test = {accuracy}")
         

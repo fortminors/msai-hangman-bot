@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Main page</title>
+</head>
+<body>
+    <h1>Flask App</h1>
+    <p>
+        This is the main page. Choose what you want to do.
+    </p>
+    <p>
+        {{ message }}
+    </p>
+    <form action="/posts/create" method="get">
+        <button type="submit">Create Posts</button>
+    </form>
+
+    <form action="/posts" method="post">
+        <button type="submit">View Posts</button>
+    </form>
+
+<!--    {{ time }}<br>-->
+<!--    {{ request.method }}<br>-->
+<!--    {{ request.headers }}-->
+</body>
+</html>

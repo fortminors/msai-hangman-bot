@@ -168,7 +168,7 @@ class VendingMachine():
     @classmethod
     def Empty(cls, num_shelves: int, shelves_length: int) -> 'VendingMachine':
         vending_machine = cls()
-        vending_machine.shelves = [Shelf(shelves_length)] * num_shelves
+        vending_machine.shelves = [Shelf.Empty(shelves_length)] * num_shelves
 
         return vending_machine
 
